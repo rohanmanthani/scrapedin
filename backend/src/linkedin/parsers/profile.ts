@@ -1,3 +1,20 @@
+export interface ExtractedExperience {
+  title?: string;
+  company?: string;
+  location?: string;
+  dateRangeText?: string;
+  startDate?: string;
+  endDate?: string;
+  description?: string;
+}
+
+export interface ExtractedEducation {
+  school?: string;
+  degree?: string;
+  fieldOfStudy?: string;
+  dateRangeText?: string;
+}
+
 export interface ExtractedProfileDetails {
   fullName?: string;
   headline?: string;
@@ -6,6 +23,11 @@ export interface ExtractedProfileDetails {
   currentCompany?: string;
   profileImageUrl?: string;
   email?: string;
+  phoneNumbers?: string[];
+  birthday?: string;
+  currentCompanyStartedAt?: string;
+  experiences?: ExtractedExperience[];
+  education?: ExtractedEducation[];
 }
 
 interface ProfileExtractionOptions {
@@ -70,6 +92,179 @@ const extractFromExperience = (element: Element): { title?: string; company?: st
     "span[data-test='experience-entity-company-name']"
   ]);
   return { title, company };
+};
+
+const parseDateRangeParts = (value?: string): { startDate?: string; endDate?: string } => {
+  if (!value) {
+    return {};
+  }
+  const sanitized = value.replace(/\(.*?\)/g, "").replace(/[\u2013\u2014]/g, "-");
+  const [startRaw, endRaw] = sanitized.split(/\s*-\s*/);
+  const startDate = cleanText(startRaw ?? undefined);
+  let endDate = cleanText(endRaw ?? undefined);
+  if (endDate && /present/i.test(endDate)) {
+    endDate = undefined;
+  }
+  return {
+    startDate: startDate ?? undefined,
+    endDate: endDate ?? undefined
+  };
+};
+
+const extractExperiences = (root: ParentNode): ExtractedExperience[] => {
+  const selectors = [
+    "section[id*='experience'] ul.pvs-list > li",
+    "section#experience-section ul.pv-profile-section__section-info > li",
+    "section.experience__section ul > li",
+    "section[data-test='experience-section'] ul > li"
+  ];
+  const scopedRoot = root as ParentNode & { querySelectorAll: typeof document.querySelectorAll };
+  const nodes: Element[] = [];
+  selectors.forEach((selector) => {
+    scopedRoot.querySelectorAll(selector).forEach((element) => {
+      if (element instanceof Element) {
+        nodes.push(element);
+      }
+    });
+  });
+
+  return nodes
+    .map((element) => {
+      const title = getFirstMatch(element, [
+        "span[data-test='experience-entity-title']",
+        "span[data-field='experience-title']",
+        "span[aria-hidden='true']",
+        "span.t-14.t-black.t-bold",
+        "div.display-flex.flex-column.full-width.align-self-center span:first-child"
+      ]);
+      const company = getFirstMatch(element, [
+        "span[data-test='experience-entity-subtitle']",
+        "span[data-field='experience-company-name']",
+        "p.pv-entity__secondary-title",
+        "span.t-14.t-normal",
+        "div.display-flex.flex-column.full-width.align-self-center span:nth-child(2)"
+      ]);
+      const dateRangeText = getFirstMatch(element, [
+        "span[data-test='experience-entity-date-range']",
+        "span[data-field='experience-date-range']",
+        "span.pvs-entity__caption-wrapper",
+        "h4 span.t-14.t-normal.t-black--light",
+        "span.t-14.t-normal.t-black--light"
+      ]);
+      const location = getFirstMatch(element, [
+        "span[data-test='experience-entity-location']",
+        "span[data-field='experience-location']",
+        "span.pv-entity__location",
+        "span.t-14.t-normal.t-black--light"
+      ]);
+      const description = getFirstMatch(element, [
+        "div[data-test='experience-entity-description']",
+        "div.pv-entity__extra-details",
+        "div.pv-entity__description"
+      ]);
+      const { startDate, endDate } = parseDateRangeParts(dateRangeText);
+      return {
+        title,
+        company,
+        location,
+        dateRangeText,
+        startDate,
+        endDate,
+        description
+      } satisfies ExtractedExperience;
+    })
+    .filter((experience) =>
+      Boolean(experience.title || experience.company || experience.dateRangeText || experience.description)
+    );
+};
+
+const extractEducation = (root: ParentNode): ExtractedEducation[] => {
+  const selectors = [
+    "section[id*='education'] ul.pvs-list > li",
+    "section#education-section ul.pv-profile-section__section-info > li",
+    "section.education__section ul > li",
+    "section[data-test='education-section'] ul > li"
+  ];
+  const scopedRoot = root as ParentNode & { querySelectorAll: typeof document.querySelectorAll };
+  const nodes: Element[] = [];
+  selectors.forEach((selector) => {
+    scopedRoot.querySelectorAll(selector).forEach((element) => {
+      if (element instanceof Element) {
+        nodes.push(element);
+      }
+    });
+  });
+
+  return nodes
+    .map((element) => {
+      const school = getFirstMatch(element, [
+        "span[data-test='education-entity-name']",
+        "span.pv-entity__school-name",
+        "h3 span[aria-hidden='true']",
+        "h3 span"
+      ]);
+      const degree = getFirstMatch(element, [
+        "span[data-test='education-entity-degree']",
+        "span.pv-entity__degree-name .pv-entity__comma-item",
+        "span.pv-entity__comma-item"
+      ]);
+      const fieldOfStudy = getFirstMatch(element, [
+        "span[data-test='education-entity-field-of-study']",
+        "span.pv-entity__fos .pv-entity__comma-item",
+        "span.pv-entity__comma-item"
+      ]);
+      const dateRangeText = getFirstMatch(element, [
+        "span[data-test='education-entity-date-range']",
+        "span.pv-entity__dates"
+      ]);
+      return {
+        school,
+        degree,
+        fieldOfStudy,
+        dateRangeText
+      } satisfies ExtractedEducation;
+    })
+    .filter((education) => Boolean(education.school || education.degree || education.fieldOfStudy));
+};
+
+const collectPhoneNumbers = (roots: ParentNode[]): string[] => {
+  const numbers = new Set<string>();
+  const selectors = [
+    "a[href^='tel:']",
+    "span[data-test-id='top-card-contact-info-phone-number']",
+    "span[data-test-id='contact-info-phone-number']",
+    "span[data-field='phone-number']",
+    "li[data-test-id='profile-topcard-phone'] span"
+  ];
+  roots.forEach((root) => {
+    selectors.forEach((selector) => {
+      const scopedRoot = root as ParentNode & { querySelectorAll: typeof document.querySelectorAll };
+      scopedRoot.querySelectorAll(selector).forEach((element) => {
+        if (!(element instanceof Element)) {
+          return;
+        }
+        const href = element.getAttribute("href");
+        let value = href && href.toLowerCase().startsWith("tel:") ? href.slice(4) : element.textContent ?? "";
+        value = value.replace(/\s+/g, " ").trim();
+        if (value) {
+          numbers.add(value);
+        }
+      });
+    });
+  });
+  return Array.from(numbers);
+};
+
+const deriveCurrentCompanyStartedAt = (experiences: ExtractedExperience[]): string | undefined => {
+  for (const experience of experiences) {
+    if (!experience) {
+      continue;
+    }
+    if (!experience.endDate) {
+      return experience.startDate ?? experience.dateRangeText;
+    }
+  }
+  return experiences[0]?.startDate ?? experiences[0]?.dateRangeText ?? undefined;
 };
 
 const getFirstAttribute = (
@@ -172,6 +367,9 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
     }
   }
 
+  const experiences = extractExperiences(root);
+  const education = extractEducation(root);
+
   const profileImageUrl = getFirstAttribute(root, [
     "img.profile-photo-edit__preview",
     "img.pv-top-card-profile-picture__image",
@@ -202,6 +400,19 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
       .find((value): value is string => Boolean(value))
   );
 
+  const phoneNumbers = collectPhoneNumbers(contactRoots);
+  const birthday = contactRoots
+    .map((contactRoot) =>
+      getFirstMatch(contactRoot, [
+        "span[data-test-id='birthday']",
+        "li[data-test-id='profile-topcard-birthday'] span",
+        "span[data-field='birthday']"
+      ])
+    )
+    .find((value): value is string => Boolean(value));
+
+  const currentCompanyStartedAt = deriveCurrentCompanyStartedAt(experiences);
+
   return {
     fullName: fullName ?? undefined,
     headline: headline ?? undefined,
@@ -209,6 +420,11 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
     currentTitle: currentTitle ?? headline ?? undefined,
     currentCompany: currentCompany ?? undefined,
     profileImageUrl: profileImageUrl ?? undefined,
-    email
+    email,
+    phoneNumbers: phoneNumbers.length ? phoneNumbers : undefined,
+    birthday: birthday ?? undefined,
+    currentCompanyStartedAt,
+    experiences: experiences.length ? experiences : undefined,
+    education: education.length ? education : undefined
   };
 }
