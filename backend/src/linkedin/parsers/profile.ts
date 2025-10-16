@@ -257,45 +257,6 @@ const parseCountFromSummary = (value?: string): number | undefined => {
   return Math.round(base);
 };
 
-const collectConnectionSummaries = (roots: ParentNode[]): string[] => {
-  const selectors = [
-    "li[data-test-id='member-connections'] span",
-    "span[data-test-id='member-connections']",
-    "span[data-test-id='top-card__subline-item']",
-    "li[data-test-id='top-card__subline-item'] span",
-    "span[data-test-id='profile-topcard-secondary-item']",
-    ".pv-top-card--list-bullet li span[aria-hidden='true']",
-    ".pv-top-card-v2-section__connections span",
-    "span[data-field='topcard_summary']",
-    "span[data-field='topcard-summary-line']"
-  ];
-
-  const summaries = new Set<string>();
-  for (const root of roots) {
-    const scopedRoot = root as ParentNode & { querySelectorAll: typeof document.querySelectorAll };
-    selectors.forEach((selector) => {
-      scopedRoot.querySelectorAll(selector).forEach((element) => {
-        if (element instanceof Element) {
-          const text = cleanText(element.textContent);
-          if (text && /\b(connection|follower)s?\b/i.test(text)) {
-            summaries.add(text);
-          }
-        }
-      });
-    });
-    if (root instanceof Element) {
-      root.querySelectorAll("span").forEach((element) => {
-        const text = cleanText(element.textContent);
-        if (text && /\b(connection|follower)s?\b/i.test(text)) {
-          summaries.add(text);
-        }
-      });
-    }
-  }
-
-  return Array.from(summaries);
-};
-
 const collectPhoneNumbers = (roots: ParentNode[]): string[] => {
   const numbers = new Set<string>();
   const selectors = [
@@ -725,6 +686,45 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
       });
     });
     return Array.from(numbers);
+  }
+
+  function collectConnectionSummaries(roots: ParentNode[]): string[] {
+    const selectors = [
+      "li[data-test-id='member-connections'] span",
+      "span[data-test-id='member-connections']",
+      "span[data-test-id='top-card__subline-item']",
+      "li[data-test-id='top-card__subline-item'] span",
+      "span[data-test-id='profile-topcard-secondary-item']",
+      ".pv-top-card--list-bullet li span[aria-hidden='true']",
+      ".pv-top-card-v2-section__connections span",
+      "span[data-field='topcard_summary']",
+      "span[data-field='topcard-summary-line']"
+    ];
+
+    const summaries = new Set<string>();
+    for (const root of roots) {
+      const scopedRoot = root as ParentNode & { querySelectorAll: typeof document.querySelectorAll };
+      selectors.forEach((selector) => {
+        scopedRoot.querySelectorAll(selector).forEach((element) => {
+          if (element instanceof Element) {
+            const text = cleanText(element.textContent);
+            if (text && /\b(connection|follower)s?\b/i.test(text)) {
+              summaries.add(text);
+            }
+          }
+        });
+      });
+      if (root instanceof Element) {
+        root.querySelectorAll("span").forEach((element) => {
+          const text = cleanText(element.textContent);
+          if (text && /\b(connection|follower)s?\b/i.test(text)) {
+            summaries.add(text);
+          }
+        });
+      }
+    }
+
+    return Array.from(summaries);
   }
 
   function deriveCurrentCompanyStartedAt(experiencesList: ExtractedExperience[]): string | undefined {
