@@ -231,32 +231,6 @@ const extractEducation = (root: ParentNode): ExtractedEducation[] => {
     .filter((education) => Boolean(education.school || education.degree || education.fieldOfStudy));
 };
 
-const parseCountFromSummary = (value?: string): number | undefined => {
-  if (!value) {
-    return undefined;
-  }
-  const normalized = value.replace(/[+,]/g, "").trim().toLowerCase();
-  const match = normalized.match(/(\d+(?:\.\d+)?)(k|m|b)?/i);
-  if (!match) {
-    return undefined;
-  }
-  const base = Number.parseFloat(match[1]);
-  if (Number.isNaN(base)) {
-    return undefined;
-  }
-  const suffix = match[2]?.toLowerCase();
-  if (suffix === "k") {
-    return Math.round(base * 1_000);
-  }
-  if (suffix === "m") {
-    return Math.round(base * 1_000_000);
-  }
-  if (suffix === "b") {
-    return Math.round(base * 1_000_000_000);
-  }
-  return Math.round(base);
-};
-
 const collectPhoneNumbers = (roots: ParentNode[]): string[] => {
   const numbers = new Set<string>();
   const selectors = [
@@ -725,6 +699,32 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
     }
 
     return Array.from(summaries);
+  }
+
+  function parseCountFromSummary(value?: string): number | undefined {
+    if (!value) {
+      return undefined;
+    }
+    const normalized = value.replace(/[+,]/g, "").trim().toLowerCase();
+    const match = normalized.match(/(\d+(?:\.\d+)?)(k|m|b)?/i);
+    if (!match) {
+      return undefined;
+    }
+    const base = Number.parseFloat(match[1]);
+    if (Number.isNaN(base)) {
+      return undefined;
+    }
+    const suffix = match[2]?.toLowerCase();
+    if (suffix === "k") {
+      return Math.round(base * 1_000);
+    }
+    if (suffix === "m") {
+      return Math.round(base * 1_000_000);
+    }
+    if (suffix === "b") {
+      return Math.round(base * 1_000_000_000);
+    }
+    return Math.round(base);
   }
 
   function deriveCurrentCompanyStartedAt(experiencesList: ExtractedExperience[]): string | undefined {
