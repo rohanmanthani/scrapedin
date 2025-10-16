@@ -615,6 +615,10 @@ a:hover {
   color: var(--foreground);
 }
 
+.table td {
+  vertical-align: top;
+}
+
 .table th {
   color: rgba(148, 163, 184, 0.8);
   font-weight: 600;
@@ -631,20 +635,42 @@ a:hover {
   overflow-x: auto;
 }
 
+.automation-table {
+  width: 100%;
+}
+
+.automation-table__details-heading {
+  width: 28%;
+  min-width: 220px;
+}
+
+.automation-table__details {
+  max-width: 320px;
+  width: 28%;
+}
+
+.automation-table__details-text {
+  white-space: normal;
+  word-break: break-word;
+}
+
 .table-actions {
-  min-width: 160px;
+  min-width: 200px;
+  white-space: nowrap;
 }
 
 .action-buttons {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
+  align-items: center;
   position: relative;
 }
 
 .overflow-wrapper {
   position: relative;
+  display: flex;
 }
 
 .automation-menu {
