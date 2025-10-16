@@ -15,24 +15,24 @@ export interface EngagementExtractionOptions {
   root?: ParentNode | null;
 }
 
-const sanitizeFullName = (raw: string): string => {
-  if (!raw) {
-    return raw;
-  }
-  let value = raw.replace(/\bView\s+[^\n]+?\s+profile\b/gi, " ");
-  value = value.replace(/\b[1-3](?:st|nd|rd|th)?\s+degree\s+connection\b.*$/i, " ");
-  const separators = ["·", "|", "•"];
-  for (const separator of separators) {
-    const index = value.indexOf(separator);
-    if (index > 0) {
-      value = value.slice(0, index);
-    }
-  }
-  value = value.replace(/\s+/g, " ").trim();
-  return value;
-};
-
 export function extractReactors(options?: EngagementExtractionOptions): ExtractedEngagementProfile[] {
+  const sanitizeFullName = (raw: string): string => {
+    if (!raw) {
+      return raw;
+    }
+    let value = raw.replace(/\bView\s+[^\n]+?\s+profile\b/gi, " ");
+    value = value.replace(/\b[1-3](?:st|nd|rd|th)?\s+degree\s+connection\b.*$/i, " ");
+    const separators = ["·", "|", "•"];
+    for (const separator of separators) {
+      const index = value.indexOf(separator);
+      if (index > 0) {
+        value = value.slice(0, index);
+      }
+    }
+    value = value.replace(/\s+/g, " ").trim();
+    return value;
+  };
+
   const REACTOR_SELECTORS = [
     "li.reactor-entry",
     "li.social-details-reactors-tab__list-item",
@@ -169,6 +169,23 @@ export function extractReactors(options?: EngagementExtractionOptions): Extracte
 }
 
 export function extractComments(options?: EngagementExtractionOptions): ExtractedEngagementProfile[] {
+  const sanitizeFullName = (raw: string): string => {
+    if (!raw) {
+      return raw;
+    }
+    let value = raw.replace(/\bView\s+[^\n]+?\s+profile\b/gi, " ");
+    value = value.replace(/\b[1-3](?:st|nd|rd|th)?\s+degree\s+connection\b.*$/i, " ");
+    const separators = ["·", "|", "•"];
+    for (const separator of separators) {
+      const index = value.indexOf(separator);
+      if (index > 0) {
+        value = value.slice(0, index);
+      }
+    }
+    value = value.replace(/\s+/g, " ").trim();
+    return value;
+  };
+
   const COMMENT_SELECTORS = [
     "article.comments-comment-item",
     "li.comments-comments-list__comment-item",
