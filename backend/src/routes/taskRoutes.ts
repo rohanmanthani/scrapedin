@@ -78,6 +78,31 @@ export const createTaskRouter = (
     })
   );
 
+  router.post(
+    "/profiles",
+    asyncHandler(async (req, res) => {
+      const { profileUrls, name, leadListName } = req.body ?? {};
+      if (!Array.isArray(profileUrls) || profileUrls.length === 0) {
+        res.status(400).json({ error: "profileUrls must be a non-empty array" });
+        return;
+      }
+      const trimmed = profileUrls
+        .map((url: unknown) => (typeof url === "string" ? url.trim() : ""))
+        .filter((url: string) => url.length > 0);
+      if (!trimmed.length) {
+        res.status(400).json({ error: "profileUrls must include at least one valid URL" });
+        return;
+      }
+      const settings = await settingsService.get();
+      const task = await taskService.createProfileTask(settings, {
+        name,
+        profileUrls: trimmed,
+        targetLeadListName: typeof leadListName === "string" ? leadListName.trim() || undefined : undefined
+      });
+      res.status(201).json(task);
+    })
+  );
+
   router.patch(
     "/:taskId",
     asyncHandler(async (req, res) => {

@@ -1,15 +1,8 @@
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type {
-  AutomationSettings,
-  AutoPlanResponse,
-  SalesNavSeniority,
-  SearchPreset,
-  SearchTask,
-  SearchTaskType
-} from "../../types";
+import type { AutoPlanResponse, SalesNavSeniority, SearchPreset, SearchTask, SearchTaskType } from "../../types";
 import { apiClient } from "../../api/client";
 
 type TaskWithPreset = SearchTask & { preset?: SearchPreset };
@@ -26,7 +19,7 @@ const statusLabels: Record<SearchTask["status"], string> = {
   cancelled: "Cancelled"
 };
 
-type CreateMode = "icp" | "accounts" | "posts";
+type CreateMode = "icp" | "accounts" | "posts" | "profiles";
 
 interface AutomationDashboardProps {
   onOpenSettings?: () => void;
@@ -46,14 +39,6 @@ const SENIORITY_OPTIONS: Array<{ value: SalesNavSeniority; label: string }> = [
 export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: AutomationDashboardProps) => {
   const queryClient = useQueryClient();
 
-  const { data: settings } = useQuery({
-    queryKey: ["settings"],
-    queryFn: async () => {
-      const { data } = await apiClient.get<AutomationSettings>("/settings");
-      return data;
-    }
-  });
-
   const { data: presets } = useQuery({
     queryKey: ["search-presets"],
     queryFn: async () => {
@@ -69,18 +54,6 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
       return data;
     },
     refetchInterval: 15_000
-  });
-
-  const toggleAutomation = useMutation({
-    mutationFn: async (enabled: boolean) => {
-      if (!settings) return;
-      const next: AutomationSettings = { ...settings, enabled };
-      const { data } = await apiClient.put<AutomationSettings>("/settings", next);
-      return data;
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["settings"] });
-    }
   });
 
   const [menuTaskId, setMenuTaskId] = useState<string | null>(null);
@@ -149,6 +122,9 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   const [postsLeadList, setPostsLeadList] = useState("");
   const [postsScrapeReactions, setPostsScrapeReactions] = useState(true);
   const [postsScrapeCommenters, setPostsScrapeCommenters] = useState(true);
+  const [profilesInput, setProfilesInput] = useState("");
+  const [profilesName, setProfilesName] = useState("");
+  const [profilesLeadList, setProfilesLeadList] = useState("");
 
   const closeMenu = useCallback(() => {
     setMenuTaskId(null);
@@ -179,6 +155,9 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
     setPostsLeadList("");
     setPostsScrapeReactions(true);
     setPostsScrapeCommenters(true);
+    setProfilesInput("");
+    setProfilesName("");
+    setProfilesLeadList("");
   }, []);
 
   const handleCreateModalClose = useCallback(() => {
@@ -365,6 +344,8 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
         return "Account follower scrape";
       case "post_engagement":
         return "Post engagement scrape";
+      case "profile_scrape":
+        return "Profile list scrape";
       case "sales_navigator":
       default:
         return "Sales Navigator search";
@@ -435,6 +416,21 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
         parts.push(`Lead list: ${payload.targetLeadListName}`);
       }
       return parts.length ? parts.join(" • ") : "No posts added yet";
+    }
+
+    if (type === "profile_scrape") {
+      const profiles = payload.profileUrls ?? [];
+      if (profiles.length) {
+        parts.push(`${profiles.length} profile${profiles.length === 1 ? "" : "s"}`);
+        const preview = formatListPreview(profiles);
+        if (preview) {
+          parts.push(preview);
+        }
+      }
+      if (payload.targetLeadListName) {
+        parts.push(`Lead list: ${payload.targetLeadListName}`);
+      }
+      return parts.length ? parts.join(" • ") : "No profiles added yet";
     }
 
     return "Ready for review";
@@ -556,6 +552,21 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
     },
     onError: (error: unknown) => {
       setCreateError(error instanceof Error ? error.message : "Failed to create post engagement task");
+    }
+  });
+
+  const createProfilesMutation = useMutation({
+    mutationFn: async (payload: { profileUrls: string[]; name?: string; leadListName?: string }) => {
+      const { data } = await apiClient.post<SearchTask>("/tasks/profiles", payload);
+      return data;
+    },
+    onSuccess: (task) => {
+      setBannerMessage(`Draft profile scrape task "${task.name ?? "Profile List"}" created.`);
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      handleCreateModalClose();
+    },
+    onError: (error: unknown) => {
+      setCreateError(error instanceof Error ? error.message : "Failed to create profile scrape task");
     }
   });
 
@@ -1004,6 +1015,23 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
     ]
   );
 
+  const handleSubmitCreateProfiles = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const urls = parseListInput(profilesInput);
+      if (urls.length === 0) {
+        setCreateError("Add at least one LinkedIn profile URL.");
+        return;
+      }
+      createProfilesMutation.mutate({
+        profileUrls: urls,
+        name: profilesName.trim() || undefined,
+        leadListName: profilesLeadList.trim() || undefined
+      });
+    },
+    [profilesInput, profilesName, profilesLeadList, createProfilesMutation, parseListInput]
+  );
+
   const isCreateLoading =
     createMode === "icp"
       ? createIcpMutation.isLoading
@@ -1011,29 +1039,12 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
       ? createAccountsMutation.isLoading
       : createMode === "posts"
       ? createPostsMutation.isLoading
+      : createMode === "profiles"
+      ? createProfilesMutation.isLoading
       : false;
 
   return (
     <div className="stack">
-      <section className="panel">
-        <h2>Automation Status</h2>
-        <p>Enable or pause the background runner. New jobs auto-queue automatically whenever automation is armed.</p>
-        <div className="automation-toggle">
-          <div>
-            <strong>{settings?.enabled ? "Automation is armed" : "Automation is paused"}</strong>
-            <p className="muted">Quiet hours, delays, and concurrency live under Settings.</p>
-          </div>
-          <button
-            type="button"
-            className="button"
-            onClick={() => toggleAutomation.mutate(!settings?.enabled)}
-            disabled={toggleAutomation.isLoading || !settings}
-          >
-            {toggleAutomation.isLoading ? "Updating..." : settings?.enabled ? "Pause Automation" : "Enable Automation"}
-          </button>
-        </div>
-      </section>
-
       <section className="panel">
         <div className="panel__header">
           <div>
@@ -1104,7 +1115,8 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                   const isStartableTask =
                     taskType === "sales_navigator" ||
                     taskType === "account_followers" ||
-                    taskType === "post_engagement";
+                    taskType === "post_engagement" ||
+                    taskType === "profile_scrape";
                   const taskName = task.name ?? task.preset?.name ?? "Untitled";
                   const detailText = getTaskDetailsText(task);
                   const typeLabel = getTaskTypeLabel(task);
@@ -1290,6 +1302,16 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                 }}
               >
                 Create by Posts
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  closeCreateMenu();
+                  resetCreateState();
+                  setCreateMode("profiles");
+                }}
+              >
+                Create by Profiles
               </button>
             </div>,
             document.body
@@ -1800,24 +1822,187 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
       {createMode
         ? createPortal(
             (() => {
-              const submitHandler =
-                createMode === "icp"
-                  ? handleSubmitCreateIcp
-                  : createMode === "accounts"
-                  ? handleSubmitCreateAccounts
-                  : handleSubmitCreatePosts;
-              const title =
-                createMode === "icp"
-                  ? "Create Automation by ICP"
-                  : createMode === "accounts"
-                  ? "Create Automation from Accounts"
-                  : "Create Automation from Posts";
-              const description =
-                createMode === "icp"
-                  ? "Use natural language to describe your ideal customer profile. We'll expand it into filters and create draft automations."
-                  : createMode === "accounts"
-                  ? "Paste the LinkedIn company URLs you care about. We'll prepare a draft follower scrape for review."
-                  : "Paste LinkedIn post URLs and choose which engagement to harvest. We'll prepare a draft task ready for review.";
+              let submitHandler: (event: FormEvent<HTMLFormElement>) => void;
+              let title: string;
+              let description: string;
+              switch (createMode) {
+                case "icp":
+                  submitHandler = handleSubmitCreateIcp;
+                  title = "Create Automation by ICP";
+                  description =
+                    "Use natural language to describe your ideal customer profile. We'll expand it into filters and create draft automations.";
+                  break;
+                case "accounts":
+                  submitHandler = handleSubmitCreateAccounts;
+                  title = "Create Automation from Accounts";
+                  description =
+                    "Paste the LinkedIn company URLs you care about. We'll prepare a draft follower scrape for review.";
+                  break;
+                case "posts":
+                  submitHandler = handleSubmitCreatePosts;
+                  title = "Create Automation from Posts";
+                  description =
+                    "Paste LinkedIn post URLs and choose which engagement to harvest. We'll prepare a draft task ready for review.";
+                  break;
+                case "profiles":
+                  submitHandler = handleSubmitCreateProfiles;
+                  title = "Create Automation from Profiles";
+                  description =
+                    "Paste LinkedIn profile URLs and we'll capture top-card, experience, and contact details into your lead list.";
+                  break;
+                default:
+                  submitHandler = handleSubmitCreateIcp;
+                  title = "Create Automation";
+                  description = "Configure your automation parameters.";
+              }
+
+              let formContent: JSX.Element | null = null;
+              if (createMode === "icp") {
+                formContent = (
+                  <div className="stack">
+                    <div className="input-group">
+                      <label htmlFor="icp-command-name">Name (optional)</label>
+                      <input
+                        id="icp-command-name"
+                        value={icpCommandName}
+                        onChange={(event) => setIcpCommandName(event.target.value)}
+                        placeholder="e.g., HR SaaS expansion"
+                      />
+                    </div>
+                    <div className="input-group">
+                      <label htmlFor="icp-prompt">Describe your ICP</label>
+                      <textarea
+                        id="icp-prompt"
+                        rows={6}
+                        value={icpPrompt}
+                        onChange={(event) => setIcpPrompt(event.target.value)}
+                        placeholder="Target mid-market HR leaders in SaaS companies across North America..."
+                      />
+                    </div>
+                  </div>
+                );
+              } else if (createMode === "accounts") {
+                formContent = (
+                  <div className="stack">
+                    <div className="input-group">
+                      <label htmlFor="accounts-name">Task name (optional)</label>
+                      <input
+                        id="accounts-name"
+                        value={accountsName}
+                        onChange={(event) => setAccountsName(event.target.value)}
+                        placeholder="e.g., Monitor competitor followers"
+                      />
+                    </div>
+                    <div className="input-group">
+                      <label htmlFor="accounts-input">LinkedIn company URLs</label>
+                      <textarea
+                        id="accounts-input"
+                        rows={6}
+                        value={accountsInput}
+                        onChange={(event) => setAccountsInput(event.target.value)}
+                        placeholder={`https://www.linkedin.com/company/example-one\nhttps://www.linkedin.com/company/example-two`}
+                      />
+                      <small className="muted">Separate each company by a new line or comma.</small>
+                    </div>
+                    <div className="input-group">
+                      <label htmlFor="accounts-leadlist">Target lead list (optional)</label>
+                      <input
+                        id="accounts-leadlist"
+                        value={accountsLeadList}
+                        onChange={(event) => setAccountsLeadList(event.target.value)}
+                        placeholder="Followers - Q4 campaign"
+                      />
+                    </div>
+                  </div>
+                );
+              } else if (createMode === "posts") {
+                formContent = (
+                  <div className="stack">
+                    <div className="input-group">
+                      <label htmlFor="posts-name">Task name (optional)</label>
+                      <input
+                        id="posts-name"
+                        value={postsName}
+                        onChange={(event) => setPostsName(event.target.value)}
+                        placeholder="e.g., Capture webinar commenters"
+                      />
+                    </div>
+                    <div className="input-group">
+                      <label htmlFor="posts-input">LinkedIn post URLs</label>
+                      <textarea
+                        id="posts-input"
+                        rows={6}
+                        value={postsInput}
+                        onChange={(event) => setPostsInput(event.target.value)}
+                        placeholder="https://www.linkedin.com/posts/..."
+                      />
+                      <small className="muted">Separate each post by a new line or comma.</small>
+                    </div>
+                    <div className="input-group inline">
+                      <label>Collect</label>
+                      <label className="toggle-option">
+                        <input
+                          type="checkbox"
+                          checked={postsScrapeReactions}
+                          onChange={(event) => setPostsScrapeReactions(event.target.checked)}
+                        />
+                        <span>Reactions</span>
+                      </label>
+                      <label className="toggle-option">
+                        <input
+                          type="checkbox"
+                          checked={postsScrapeCommenters}
+                          onChange={(event) => setPostsScrapeCommenters(event.target.checked)}
+                        />
+                        <span>Comments</span>
+                      </label>
+                    </div>
+                    <div className="input-group">
+                      <label htmlFor="posts-leadlist">Target lead list (optional)</label>
+                      <input
+                        id="posts-leadlist"
+                        value={postsLeadList}
+                        onChange={(event) => setPostsLeadList(event.target.value)}
+                        placeholder="Engagement - November launch"
+                      />
+                    </div>
+                  </div>
+                );
+              } else if (createMode === "profiles") {
+                formContent = (
+                  <div className="stack">
+                    <div className="input-group">
+                      <label htmlFor="profiles-name">Task name (optional)</label>
+                      <input
+                        id="profiles-name"
+                        value={profilesName}
+                        onChange={(event) => setProfilesName(event.target.value)}
+                        placeholder="e.g., Investor outreach list"
+                      />
+                    </div>
+                    <div className="input-group">
+                      <label htmlFor="profiles-input">LinkedIn profile URLs</label>
+                      <textarea
+                        id="profiles-input"
+                        rows={6}
+                        value={profilesInput}
+                        onChange={(event) => setProfilesInput(event.target.value)}
+                        placeholder={`https://www.linkedin.com/in/example-one\nhttps://www.linkedin.com/in/example-two`}
+                      />
+                      <small className="muted">Separate each profile by a new line or comma.</small>
+                    </div>
+                    <div className="input-group">
+                      <label htmlFor="profiles-leadlist">Target lead list (optional)</label>
+                      <input
+                        id="profiles-leadlist"
+                        value={profilesLeadList}
+                        onChange={(event) => setProfilesLeadList(event.target.value)}
+                        placeholder="Profiles - Product Hunt launch"
+                      />
+                    </div>
+                  </div>
+                );
+              }
 
               return (
                 <div

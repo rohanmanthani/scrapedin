@@ -90,12 +90,17 @@ export type TaskStatus =
   | "failed"
   | "cancelled";
 
-export type SearchTaskType = "sales_navigator" | "account_followers" | "post_engagement";
+export type SearchTaskType =
+  | "sales_navigator"
+  | "account_followers"
+  | "post_engagement"
+  | "profile_scrape";
 
 export interface SearchTaskPayload {
   icpPrompt?: string;
   accountUrls?: string[];
   postUrls?: string[];
+  profileUrls?: string[];
   scrapeReactions?: boolean;
   scrapeCommenters?: boolean;
   targetLeadListName?: string;
