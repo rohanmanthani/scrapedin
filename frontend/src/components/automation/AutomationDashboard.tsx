@@ -942,6 +942,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   const handleSubmitCreateIcp = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      setCreateError(null);
       const commandName = icpCommandName.trim();
       if (!commandName) {
         setCreateError("Name your automation to continue.");
@@ -960,6 +961,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   const handleSubmitCreateAccounts = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      setCreateError(null);
       const name = accountsName.trim();
       if (!name) {
         setCreateError("Name your automation to continue.");
@@ -982,6 +984,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   const handleSubmitCreatePosts = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      setCreateError(null);
       const name = postsName.trim();
       if (!name) {
         setCreateError("Name your automation to continue.");
@@ -1018,6 +1021,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   const handleSubmitCreateProfiles = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      setCreateError(null);
       const urls = parseListInput(profilesInput);
       if (urls.length === 0) {
         setCreateError("Add at least one LinkedIn profile URL.");
@@ -1855,7 +1859,6 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                   title = "Create Automation";
                   description = "Configure your automation parameters.";
               }
-
 
               return (
                 <div
