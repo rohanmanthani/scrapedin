@@ -23,8 +23,8 @@ export class LeadService {
     await this.repository.deleteLeads(ids);
   }
 
-  async exportAsCsv(): Promise<string> {
-    const leads = await this.list();
+  async exportAsCsv(ids?: string[]): Promise<string> {
+    const leads = this.filterLeads(await this.list(), ids);
     const headers: (keyof LeadRecord)[] = [
       "fullName",
       "title",
@@ -56,13 +56,13 @@ export class LeadService {
     return [headers.join(","), ...rows].join("\n");
   }
 
-  async enrichPendingEmails(): Promise<LeadRecord[]> {
+  async enrichPendingEmails(ids?: string[]): Promise<LeadRecord[]> {
     const settings = await this.settingsService.get();
     if (!settings.openAIApiKey) {
       throw new Error("OpenAI API key is not configured in settings");
     }
 
-    const leads = await this.repository.listLeads();
+    const leads = this.filterLeads(await this.repository.listLeads(), ids);
     const ai = new AiService(settings.openAIApiKey, settings.openAIModel ?? "gpt-5-mini");
     const updated: LeadRecord[] = [];
     for (const lead of leads) {
@@ -77,5 +77,14 @@ export class LeadService {
     }
 
     return updated;
+  }
+
+  private filterLeads(leads: LeadRecord[], ids?: string[]): LeadRecord[] {
+    if (!ids?.length) {
+      return leads;
+    }
+
+    const idSet = new Set(ids);
+    return leads.filter((lead) => idSet.has(lead.id));
   }
 }
