@@ -2,14 +2,7 @@ import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent, JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type {
-  AutomationSettings,
-  AutoPlanResponse,
-  SalesNavSeniority,
-  SearchPreset,
-  SearchTask,
-  SearchTaskType
-} from "../../types";
+import type { AutoPlanResponse, SalesNavSeniority, SearchPreset, SearchTask, SearchTaskType } from "../../types";
 import { apiClient } from "../../api/client";
 
 type TaskWithPreset = SearchTask & { preset?: SearchPreset };
@@ -46,14 +39,6 @@ const SENIORITY_OPTIONS: Array<{ value: SalesNavSeniority; label: string }> = [
 export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: AutomationDashboardProps) => {
   const queryClient = useQueryClient();
 
-  const { data: settings } = useQuery({
-    queryKey: ["settings"],
-    queryFn: async () => {
-      const { data } = await apiClient.get<AutomationSettings>("/settings");
-      return data;
-    }
-  });
-
   const { data: presets } = useQuery({
     queryKey: ["search-presets"],
     queryFn: async () => {
@@ -69,18 +54,6 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
       return data;
     },
     refetchInterval: 15_000
-  });
-
-  const toggleAutomation = useMutation({
-    mutationFn: async (enabled: boolean) => {
-      if (!settings) return;
-      const next: AutomationSettings = { ...settings, enabled };
-      const { data } = await apiClient.put<AutomationSettings>("/settings", next);
-      return data;
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["settings"] });
-    }
   });
 
   const [menuTaskId, setMenuTaskId] = useState<string | null>(null);
@@ -1057,25 +1030,6 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
 
   return (
     <div className="stack">
-      <section className="panel">
-        <h2>Automation Status</h2>
-        <p>Enable or pause the background runner. New jobs auto-queue automatically whenever automation is armed.</p>
-        <div className="automation-toggle">
-          <div>
-            <strong>{settings?.enabled ? "Automation is armed" : "Automation is paused"}</strong>
-            <p className="muted">Quiet hours, delays, and concurrency live under Settings.</p>
-          </div>
-          <button
-            type="button"
-            className="button"
-            onClick={() => toggleAutomation.mutate(!settings?.enabled)}
-            disabled={toggleAutomation.isLoading || !settings}
-          >
-            {toggleAutomation.isLoading ? "Updating..." : settings?.enabled ? "Pause Automation" : "Enable Automation"}
-          </button>
-        </div>
-      </section>
-
       <section className="panel">
         <div className="panel__header">
           <div>
