@@ -11,12 +11,22 @@ const formatDate = (iso?: string) => (iso ? new Date(iso).toLocaleString() : "â€
 
 const statusLabels: Record<SearchTask["status"], string> = {
   draft: "Draft",
-  pending: "Pending",
+  pending: "Warming Up",
   queued: "Queued",
   running: "Running",
   succeeded: "Completed",
   failed: "Failed",
   cancelled: "Cancelled"
+};
+
+const statusVariants: Record<SearchTask["status"], "ok" | "error" | "warn" | "info" | "progress"> = {
+  draft: "info",
+  pending: "progress",
+  queued: "warn",
+  running: "warn",
+  succeeded: "ok",
+  failed: "error",
+  cancelled: "error"
 };
 
 type CreateMode = "icp" | "accounts" | "posts" | "profiles";
@@ -1135,7 +1145,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                         <div className="muted automation-table__details-text">{detailText}</div>
                       </td>
                       <td>
-                        <span className={`status-pill status-pill--${task.status === "succeeded" ? "ok" : task.status === "failed" || task.status === "cancelled" ? "error" : "warn"}`}>
+                        <span className={`status-pill status-pill--${statusVariants[task.status]}`}>
                           {statusLabels[task.status]}
                         </span>
                         {task.errorMessage && <div className="muted">Error: {task.errorMessage}</div>}
