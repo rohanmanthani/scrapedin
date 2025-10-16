@@ -354,6 +354,38 @@ a:hover {
   flex-wrap: wrap;
 }
 
+.lead-table {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lead-table__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.lead-table__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lead-table__count {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted-strong);
+}
+
+.lead-table__actions {
+  margin-left: auto;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .settings-form {
   display: flex;
   flex-direction: column;
