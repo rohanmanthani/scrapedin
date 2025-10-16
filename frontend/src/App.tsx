@@ -10,7 +10,8 @@ type ActiveView = "automation" | "leads" | "settings";
 
 const mainNav: Array<{ id: ActiveView; label: string; icon: string }> = [
   { id: "automation", label: "Automations", icon: "⚙️" },
-  { id: "leads", label: "Leads", icon: "📇" }
+  { id: "leads", label: "Leads", icon: "📇" },
+  { id: "settings", label: "Settings", icon: "🛠" }
 ];
 
 const App = () => {
@@ -98,18 +99,6 @@ const viewMeta = useMemo<
           </div>
         </nav>
         <footer className="app__footer">
-          <button
-            type="button"
-            className={`app__nav-button app__nav-button--footer${activeView === "settings" ? " app__nav-button--active" : ""}`}
-            onClick={() => setActiveView("settings")}
-            aria-label="Settings"
-            title={isSidebarCollapsed ? "Settings" : undefined}
-          >
-            <span className="icon" aria-hidden>
-              🛠
-            </span>
-            {!isSidebarCollapsed && <span>Settings</span>}
-          </button>
           <button
             type="button"
             className="sidebar-toggle"
