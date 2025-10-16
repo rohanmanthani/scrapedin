@@ -3,6 +3,7 @@ import { asyncHandler } from "./utils.js";
 import { SearchTaskService } from "../services/SearchTaskService.js";
 import { AutomationSettingsService } from "../services/AutomationSettingsService.js";
 import type { AutomationController } from "../automation/AutomationController.js";
+import type { SearchTask } from "../types.js";
 
 export const createTaskRouter = (
   taskService: SearchTaskService,
@@ -94,10 +95,14 @@ export const createTaskRouter = (
           }
           automationController.runNow({ bypassQuietHours: true });
         }
-        task = await taskService.updateStatus(req.params.taskId, status, {
-          name,
-          scheduledFor
-        });
+        const updates: Partial<SearchTask> = {};
+        if (typeof name === "string") {
+          updates.name = name;
+        }
+        if (typeof scheduledFor === "string") {
+          updates.scheduledFor = scheduledFor;
+        }
+        task = await taskService.updateStatus(req.params.taskId, status, updates);
       } else if (name || scheduledFor) {
         task = await taskService.update(req.params.taskId, {
           ...(name ? { name } : {}),
