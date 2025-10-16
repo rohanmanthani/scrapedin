@@ -148,7 +148,12 @@ export class PostEngagementScraper extends BaseLinkedInClient {
     const hasValidName = Boolean(profile.fullName && profile.fullName.length > 1);
     const needsNameCleanup = /\bView\b.*profile\b/i.test(profile.fullName ?? "");
     const missingHeadline = !profile.headline || profile.headline.length < 2;
-    const missingLocation = !profile.location || profile.location.length < 2;
+    const invalidLocation =
+      !profile.location ||
+      profile.location.length < 2 ||
+      /\b(?:connection|degree)\b/i.test(profile.location) ||
+      (profile.headline && profile.location?.trim() === profile.headline.trim());
+    const missingLocation = invalidLocation;
     const missingCompany = !profile.currentCompany;
     return !hasValidName || needsNameCleanup || missingHeadline || missingLocation || missingCompany;
   }

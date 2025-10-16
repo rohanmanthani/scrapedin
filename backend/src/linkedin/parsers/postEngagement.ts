@@ -20,7 +20,7 @@ export function extractReactors(options?: EngagementExtractionOptions): Extracte
     if (!raw) {
       return raw;
     }
-    let value = raw.replace(/\bView\s+[^\n]+?\s+profile\b/gi, " ");
+    let value = raw.replace(/View[\s\S]*?profile/gi, " ");
     value = value.replace(/\b[1-3](?:st|nd|rd|th)?\s+degree\s+connection\b.*$/i, " ");
     const separators = ["·", "|", "•"];
     for (const separator of separators) {
