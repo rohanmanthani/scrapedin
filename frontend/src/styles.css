@@ -529,6 +529,12 @@ a:hover {
   color: var(--muted-strong);
 }
 
+.required-indicator {
+  color: #f87171;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
 .input-group input,
 .input-group textarea,
 .input-group select {
@@ -552,6 +558,34 @@ a:hover {
 .input-group textarea {
   resize: vertical;
   min-height: 120px;
+}
+
+.modal--create .input-group {
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 14px;
+  padding: 16px 18px 14px;
+  margin-bottom: 0;
+  box-shadow: 0 20px 35px rgba(8, 15, 32, 0.45);
+}
+
+.modal--create .input-group label {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.modal--create .input-group input,
+.modal--create .input-group textarea,
+.modal--create .input-group select {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(96, 165, 250, 0.25);
+}
+
+.modal--create .input-group input:focus,
+.modal--create .input-group textarea:focus,
+.modal--create .input-group select:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.28);
 }
 
 .input-fieldset {
@@ -607,6 +641,24 @@ a:hover {
 
 .toggle-option input {
   accent-color: var(--primary);
+}
+
+.modal--create .toggle-option {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  padding: 8px 16px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.modal--create .toggle-option:hover,
+.modal--create .toggle-option:focus-within {
+  border-color: rgba(96, 165, 250, 0.35);
+  background: rgba(37, 99, 235, 0.16);
+}
+
+.modal--create .toggle-option span {
+  font-weight: 600;
 }
 
 .input-row {
@@ -874,6 +926,21 @@ a:hover {
   overflow-y: auto;
 }
 
+.modal--create {
+  background: linear-gradient(155deg, rgba(15, 23, 42, 0.95), rgba(17, 24, 39, 0.9));
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  box-shadow: 0 40px 70px rgba(8, 15, 32, 0.7), 0 0 0 1px rgba(148, 163, 184, 0.12) inset;
+}
+
+.modal--create .modal__header {
+  padding: 28px 32px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.modal--create .modal__header h2 {
+  margin-bottom: 6px;
+}
+
 .modal__header {
   padding: 24px 24px 0;
 }
@@ -883,6 +950,11 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.modal__body--create {
+  padding: 20px 32px 32px;
+  gap: 24px;
 }
 
 .modal__steps {
@@ -954,6 +1026,7 @@ a:hover {
   padding: 0 24px 24px;
   display: flex;
   justify-content: flex-end;
+  gap: 12px;
 }
 
 .alert {
