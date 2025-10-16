@@ -315,13 +315,94 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
     querySelectorAll: typeof document.querySelectorAll;
   };
 
-  const fullName = getFirstMatch(root, [
+  let fullName = getFirstMatch(root, [
     "h1.text-heading-xlarge",
     "h1.pv-top-card-section__name",
     "h1[data-test-id='hero-title']",
     ".pv-text-details__left-panel h1",
-    ".top-card-layout__title"
+    ".top-card-layout__title",
+    "h1[data-test-id='member-name']",
+    "div[data-view-name='profile-top-card'] h1"
   ]);
+
+  if (!fullName) {
+    const dataMemberName = getFirstAttribute(root, ["main[data-member-name]"], "data-member-name");
+    if (dataMemberName) {
+      fullName = cleanText(dataMemberName);
+    }
+  }
+
+  if (!fullName) {
+    const metaTitle = getFirstAttribute(
+      root,
+      ["meta[property='og:title']", "meta[name='title']", "meta[name='twitter:title']"],
+      "content"
+    );
+    if (metaTitle) {
+      const withoutLinkedIn = metaTitle.replace(/\s*\|\s*LinkedIn\s*$/i, "");
+      const condensed = withoutLinkedIn.split("|")[0]?.split(" – ")[0]?.split(" - ")[0];
+      const cleaned = cleanText(condensed ?? withoutLinkedIn);
+      if (cleaned) {
+        fullName = cleaned;
+      }
+    }
+  }
+
+  if (!fullName) {
+    const scopedRoot = root as ParentNode & { querySelectorAll: typeof document.querySelectorAll };
+    const scripts = scopedRoot.querySelectorAll("script[type='application/ld+json']");
+    const findNameInJson = (value: unknown): string | undefined => {
+      if (!value) {
+        return undefined;
+      }
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          const found = findNameInJson(item);
+          if (found) {
+            return found;
+          }
+        }
+        return undefined;
+      }
+      if (typeof value === "object") {
+        const record = value as Record<string, unknown>;
+        const type = record["@type"];
+        const types = Array.isArray(type) ? type : type ? [type] : [];
+        if (types.some((entry) => typeof entry === "string" && /\bPerson\b/i.test(entry))) {
+          const nameValue = record.name;
+          if (typeof nameValue === "string") {
+            const cleaned = cleanText(nameValue);
+            if (cleaned) {
+              return cleaned;
+            }
+          }
+        }
+        for (const entry of Object.values(record)) {
+          const found = findNameInJson(entry);
+          if (found) {
+            return found;
+          }
+        }
+      }
+      return undefined;
+    };
+    for (const element of scripts) {
+      const text = element.textContent;
+      if (!text) {
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(text);
+        const found = findNameInJson(parsed);
+        if (found) {
+          fullName = found;
+          break;
+        }
+      } catch {
+        continue;
+      }
+    }
+  }
 
   const headline = getFirstMatch(root, [
     "div.text-body-medium.break-words",
