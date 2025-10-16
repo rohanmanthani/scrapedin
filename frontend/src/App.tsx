@@ -8,6 +8,29 @@ import { AutomationDashboard } from "./components/automation/AutomationDashboard
 
 type ActiveView = "automation" | "leads" | "settings";
 
+const defaultView: ActiveView = "automation";
+
+const viewSegments: Record<ActiveView, string> = {
+  automation: "automations",
+  leads: "leads",
+  settings: "settings"
+};
+
+const segmentToView = Object.fromEntries(
+  (Object.entries(viewSegments) as Array<[ActiveView, string]>).map(([view, segment]) => [
+    segment,
+    view
+  ])
+) as Record<string, ActiveView>;
+
+const getViewFromHash = (hash: string): ActiveView => {
+  const normalized = hash.replace(/^#?\/?/, "");
+  if (normalized in segmentToView) {
+    return segmentToView[normalized];
+  }
+  return defaultView;
+};
+
 const mainNav: Array<{ id: ActiveView; label: string; icon: string }> = [
   { id: "automation", label: "Automations", icon: "⚙️" },
   { id: "leads", label: "Leads", icon: "📇" },
@@ -15,7 +38,7 @@ const mainNav: Array<{ id: ActiveView; label: string; icon: string }> = [
 ];
 
 const App = () => {
-  const [activeView, setActiveView] = useState<ActiveView>("automation");
+  const [activeView, setActiveView] = useState<ActiveView>(() => getViewFromHash(window.location.hash));
   const { data: settings, isLoading: loadingSettings } = useSettings();
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dismissedOnboarding, setDismissedOnboarding] = useState(false);
@@ -37,38 +60,54 @@ const App = () => {
     }
   }, [loadingSettings, settings?.sessionCookie, settings?.openAIApiKey, dismissedOnboarding]);
 
-const viewMeta = useMemo<
-  Record<
-    ActiveView,
-    {
-      title: string;
-      description: string;
-      render: (ctx: { onOpenSettings: () => void }) => JSX.Element;
-    }
-  >
->(
-    () => ({
-      automation: {
-        title: "Automations",
-        description:
-          "Draft new scraping jobs, review their settings, and kick off runs when you're ready.",
-        render: ({ onOpenSettings }) => <AutomationDashboard onOpenSettings={onOpenSettings} />
-      },
-      leads: {
-        title: "Lead Vault",
-        description:
-          "Inspect enriched leads captured by automations, trigger email discovery, and export to CSV.",
-        render: () => <LeadTable />
-      },
-      settings: {
-        title: "Settings & API Keys",
-        description:
-          "Manage LinkedIn authentication, choose your AI model and automation modes, and tune guardrails.",
-        render: () => <SettingsPage />
+  const viewMeta = useMemo<
+    Record<
+      ActiveView,
+      {
+        title: string;
+        description: string;
+        render: (ctx: { onOpenSettings: () => void }) => JSX.Element;
       }
-    }),
-    []
-  );
+    >
+  >(
+      () => ({
+        automation: {
+          title: "Automations",
+          description:
+            "Draft new scraping jobs, review their settings, and kick off runs when you're ready.",
+          render: ({ onOpenSettings }) => <AutomationDashboard onOpenSettings={onOpenSettings} />
+        },
+        leads: {
+          title: "Lead Vault",
+          description:
+            "Inspect enriched leads captured by automations, trigger email discovery, and export to CSV.",
+          render: () => <LeadTable />
+        },
+        settings: {
+          title: "Settings & API Keys",
+          description:
+            "Manage LinkedIn authentication, choose your AI model and automation modes, and tune guardrails.",
+          render: () => <SettingsPage />
+        }
+      }),
+      []
+    );
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      setActiveView(getViewFromHash(window.location.hash));
+    };
+
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
+
+  useEffect(() => {
+    const targetHash = `#/${viewSegments[activeView]}`;
+    if (window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
+    }
+  }, [activeView]);
 
   const activeMeta = viewMeta[activeView];
 
