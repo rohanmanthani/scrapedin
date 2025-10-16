@@ -52,6 +52,29 @@ test("extractReactors captures reaction metadata", () => {
   assert.equal(reactors[1].reactionLabel, "Like");
 });
 
+test("extractReactors removes connection and status text", () => {
+  const html = `
+    <section class="social-details-reactors-tab__content">
+      <ul>
+        <li class="reactor-entry">
+          <a href="/in/garrett-reactor/">Garrett Reactor 2nd degree connection</a>
+          <div class="reactor-entry__member-headline">Principal Engineer</div>
+          <span class="reactor-entry__member-secondary-title">Status: Not available</span>
+        </li>
+      </ul>
+    </section>
+  `;
+  const document = buildDocument(html, "https://www.linkedin.com/feed/update/urn:li:activity:987654321/");
+  const reactors = extractReactors({
+    root: document,
+    origin: "https://www.linkedin.com/feed/update/urn:li:activity:987654321/"
+  });
+
+  assert.equal(reactors.length, 1);
+  assert.equal(reactors[0].fullName, "Garrett Reactor");
+  assert.equal(reactors[0].location, undefined);
+});
+
 test("extractComments captures commenter headline and text", () => {
   const html = `
     <section class="comments-comments-list">

@@ -155,7 +155,23 @@ export class PostEngagementScraper extends BaseLinkedInClient {
       (profile.headline && profile.location?.trim() === profile.headline.trim());
     const missingLocation = invalidLocation;
     const missingCompany = !profile.currentCompany;
-    return !hasValidName || needsNameCleanup || missingHeadline || missingLocation || missingCompany;
+    const missingEmail = !profile.email;
+    const missingProfileImage = !profile.profileImageUrl;
+    return (
+      !hasValidName ||
+      needsNameCleanup ||
+      missingHeadline ||
+      missingLocation ||
+      missingCompany ||
+      missingEmail ||
+      missingProfileImage
+    );
+  }
+
+  private hasFullName(
+    profile: ExtractedEngagementProfile
+  ): profile is ExtractedEngagementProfile & { fullName: string } {
+    return typeof profile.fullName === "string" && profile.fullName.trim().length > 0;
   }
 
   private async enrichEngagementProfiles<T extends ExtractedEngagementProfile>(
@@ -192,7 +208,9 @@ export class PostEngagementScraper extends BaseLinkedInClient {
         headline: details.headline ?? profile.headline,
         location: details.location ?? profile.location,
         currentTitle: details.currentTitle ?? profile.currentTitle ?? details.headline ?? profile.headline,
-        currentCompany: details.currentCompany ?? profile.currentCompany
+        currentCompany: details.currentCompany ?? profile.currentCompany,
+        profileImageUrl: details.profileImageUrl ?? profile.profileImageUrl,
+        email: details.email ?? profile.email
       });
     }
 
@@ -215,6 +233,22 @@ export class PostEngagementScraper extends BaseLinkedInClient {
         await page.waitForSelector("main", { timeout: Math.min(this.settings.pageTimeoutMs, 8000) });
       } catch {
         // Ignore if the main selector does not appear quickly; we'll attempt extraction anyway.
+      }
+      await this.clickIfExists(page, [
+        "a[data-control-name='contact_see_more']",
+        "a[href*='contact-info']",
+        "button[aria-label*='Contact info']",
+        "button[aria-label*='Contact Info']",
+        "button[data-test-id='profile-topcard-contact-info']"
+      ]);
+      await this.randomDelay();
+      try {
+        await page.waitForSelector(
+          "section.pv-contact-info__contact-type, section[data-test-id='profile-contact-info'], div.artdeco-modal__content",
+          { timeout: Math.min(this.settings.pageTimeoutMs / 2, 6000) }
+        );
+      } catch {
+        // The contact info modal may not be available for all profiles.
       }
       const details = await page.evaluate(extractProfileDetails);
       return details;
@@ -480,7 +514,9 @@ export class PostEngagementScraper extends BaseLinkedInClient {
   ): LeadRecord[] {
     const timestamp = new Date().toISOString();
     return profiles
-      .filter((profile) => profile.profileUrl && profile.fullName)
+      .filter((profile): profile is ExtractedEngagementProfile & { fullName: string } =>
+        Boolean(profile.profileUrl) && this.hasFullName(profile)
+      )
       .map((profile) => {
         const id = `${input.taskId}:${profile.profileUrl}`;
         return {
@@ -492,6 +528,7 @@ export class PostEngagementScraper extends BaseLinkedInClient {
           headline: profile.headline,
           companyName: profile.currentCompany,
           location: profile.location,
+          email: profile.email,
           capturedAt: timestamp,
           raw: {
             source: "post_engagement",
@@ -513,7 +550,9 @@ export class PostEngagementScraper extends BaseLinkedInClient {
   ): LeadRecord[] {
     const timestamp = new Date().toISOString();
     return profiles
-      .filter((profile) => profile.profileUrl && profile.fullName)
+      .filter((profile): profile is ExtractedEngagementProfile & { fullName: string } =>
+        Boolean(profile.profileUrl) && this.hasFullName(profile)
+      )
       .map((profile) => {
         const id = `${input.taskId}:${profile.profileUrl}:comment`;
         return {
@@ -525,6 +564,7 @@ export class PostEngagementScraper extends BaseLinkedInClient {
           headline: profile.headline,
           companyName: profile.currentCompany,
           location: profile.location,
+          email: profile.email,
           capturedAt: timestamp,
           raw: {
             source: "post_engagement",

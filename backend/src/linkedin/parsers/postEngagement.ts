@@ -1,10 +1,12 @@
 export interface ExtractedEngagementProfile {
-  fullName: string;
+  fullName?: string;
   profileUrl: string;
   headline?: string;
   location?: string;
   currentTitle?: string;
   currentCompany?: string;
+  profileImageUrl?: string;
+  email?: string;
   reactionLabel?: string;
   commentText?: string;
 }
@@ -22,6 +24,7 @@ export function extractReactors(options?: EngagementExtractionOptions): Extracte
     }
     let value = raw.replace(/View[\s\S]*?profile/gi, " ");
     value = value.replace(/\b[1-3](?:st|nd|rd|th)?\s+degree\s+connection\b.*$/i, " ");
+    value = value.replace(/\b(?:1st|2nd|3rd)\s+degree\s+connection\b.*$/i, " ");
     const separators = ["·", "|", "•"];
     for (const separator of separators) {
       const index = value.indexOf(separator);
@@ -41,6 +44,14 @@ export function extractReactors(options?: EngagementExtractionOptions): Extracte
     "li[data-id='reactor']"
   ];
 
+  const NAME_SELECTORS = [
+    ".reactor-entry__member-name",
+    ".artdeco-entity-lockup__title span[aria-hidden='true']",
+    ".artdeco-entity-lockup__title",
+    ".feed-shared-actor__name",
+    ".reactions-tab__member-name"
+  ];
+
   const HEADLINE_SELECTORS = [
     ".comments-post-meta__headline",
     ".comments-comment-item__headline",
@@ -56,6 +67,23 @@ export function extractReactors(options?: EngagementExtractionOptions): Extracte
     ".artdeco-entity-lockup__caption",
     ".reactions-tab__member-secondary-title"
   ];
+
+  const cleanLocation = (raw: string | undefined): string | undefined => {
+    if (!raw) {
+      return undefined;
+    }
+    const cleaned = raw.replace(/\s+/g, " ").trim();
+    if (!cleaned) {
+      return undefined;
+    }
+    if (/\b(?:connection|degree|follower)\b/i.test(cleaned)) {
+      return undefined;
+    }
+    if (/^status:/i.test(cleaned)) {
+      return undefined;
+    }
+    return cleaned;
+  };
 
   const ANCHOR_SELECTORS = [
     "a[href*='/in/']",
@@ -134,19 +162,43 @@ export function extractReactors(options?: EngagementExtractionOptions): Extracte
       continue;
     }
 
+    const extractedName = extractFirstText(candidate, NAME_SELECTORS);
     const name = sanitizeFullName(
-      anchor.textContent?.trim() ??
-        candidate.querySelector(".reactor-entry__member-name")?.textContent?.trim() ??
-        ""
+      extractedName ?? anchor.textContent?.trim() ?? ""
     );
+
     if (!name) {
+      seen.add(profileUrl);
+      const headline = extractFirstText(candidate, HEADLINE_SELECTORS);
+      let location = cleanLocation(extractFirstText(candidate, LOCATION_SELECTORS));
+      if (location && headline && location.trim() === headline.trim()) {
+        location = undefined;
+      }
+      const reactionLabel =
+        candidate.querySelector("[data-test-reaction-icon]")?.getAttribute("data-test-reaction-icon") ??
+        candidate.querySelector(".reactor-entry__reaction-type")?.textContent?.trim() ??
+        extractFirstText(candidate, [".reactions-tab__member-reaction-type"]);
+
+      results.push({
+        profileUrl,
+        headline,
+        location,
+        reactionLabel: reactionLabel || undefined
+      });
+
+      if (typeof limit === "number" && limit > 0 && results.length >= limit) {
+        break;
+      }
       continue;
     }
 
     seen.add(profileUrl);
 
     const headline = extractFirstText(candidate, HEADLINE_SELECTORS);
-    const location = extractFirstText(candidate, LOCATION_SELECTORS);
+    let location = cleanLocation(extractFirstText(candidate, LOCATION_SELECTORS));
+    if (location && headline && location.trim() === headline.trim()) {
+      location = undefined;
+    }
     const reactionLabel =
       candidate.querySelector("[data-test-reaction-icon]")?.getAttribute("data-test-reaction-icon") ??
       candidate.querySelector(".reactor-entry__reaction-type")?.textContent?.trim() ??
