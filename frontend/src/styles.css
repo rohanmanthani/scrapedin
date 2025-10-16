@@ -46,7 +46,7 @@ a:hover {
 }
 
 .app__sidebar {
-  width: 300px;
+  width: 260px;
   background: var(--sidebar-bg);
   color: #f8fafc;
   padding: 28px 24px;
