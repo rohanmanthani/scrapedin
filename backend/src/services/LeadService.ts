@@ -19,6 +19,10 @@ export class LeadService {
     return this.repository.appendLeads(leads);
   }
 
+  async delete(ids: string[]): Promise<void> {
+    await this.repository.deleteLeads(ids);
+  }
+
   async exportAsCsv(): Promise<string> {
     const leads = await this.list();
     const headers: (keyof LeadRecord)[] = [

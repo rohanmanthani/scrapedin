@@ -147,6 +147,20 @@ export class AppStateRepository {
     return state.leads;
   }
 
+  async deleteLeads(leadIds: string[]): Promise<void> {
+    if (!leadIds.length) {
+      return;
+    }
+    const idSet = new Set(leadIds);
+    await this.store.update(async (state) => {
+      const nextState: AppState = {
+        ...state,
+        leads: state.leads.filter((lead) => !idSet.has(lead.id))
+      };
+      return [nextState, undefined];
+    });
+  }
+
   async updateLead(leadId: string, updater: (lead: LeadRecord) => LeadRecord): Promise<LeadRecord> {
     return this.store.update(async (state) => {
       const index = state.leads.findIndex((lead) => lead.id === leadId);
