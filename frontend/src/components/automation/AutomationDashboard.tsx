@@ -2,14 +2,7 @@ import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type {
-  AutomationSettings,
-  AutoPlanResponse,
-  SalesNavSeniority,
-  SearchPreset,
-  SearchTask,
-  SearchTaskType
-} from "../../types";
+import type { AutoPlanResponse, SalesNavSeniority, SearchPreset, SearchTask, SearchTaskType } from "../../types";
 import { apiClient } from "../../api/client";
 
 type TaskWithPreset = SearchTask & { preset?: SearchPreset };
@@ -45,14 +38,6 @@ const SENIORITY_OPTIONS: Array<{ value: SalesNavSeniority; label: string }> = [
 
 export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: AutomationDashboardProps) => {
   const queryClient = useQueryClient();
-
-  const { data: settings } = useQuery({
-    queryKey: ["settings"],
-    queryFn: async () => {
-      const { data } = await apiClient.get<AutomationSettings>("/settings");
-      return data;
-    }
-  });
 
   const { data: presets } = useQuery({
     queryKey: ["search-presets"],
@@ -977,11 +962,6 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
     ]
   );
 
-  const isAutomationEnabled = settings?.enabled ?? false;
-  const automationStatusClass = `automation-status__light ${
-    isAutomationEnabled ? "automation-status__light--active" : "automation-status__light--paused"
-  }`;
-
   const isCreateLoading =
     createMode === "icp"
       ? createIcpMutation.isLoading
@@ -993,18 +973,6 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
 
   return (
     <div className="stack">
-      <section className="panel">
-        <h2>Automation Status</h2>
-        <p>Manage automation guardrails and start or pause the runner from Settings.</p>
-        <div className="automation-status">
-          <span className={automationStatusClass} aria-hidden="true" />
-          <div>
-            <strong>{isAutomationEnabled ? "Automation is armed" : "Automation is paused"}</strong>
-            <p className="muted">New jobs queue automatically whenever automation is armed.</p>
-          </div>
-        </div>
-      </section>
-
       <section className="panel">
         <div className="panel__header">
           <div>

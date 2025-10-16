@@ -5,6 +5,7 @@ import { OnboardingModal } from "./components/OnboardingModal";
 import { useSettings } from "./hooks/useSettings";
 import faviconUrl from "./assets/favicon.svg?url";
 import { AutomationDashboard } from "./components/automation/AutomationDashboard";
+import { AutomationStatusBadge } from "./components/automation/AutomationStatusBadge";
 
 type ActiveView = "automation" | "leads" | "settings";
 
@@ -71,6 +72,14 @@ const viewMeta = useMemo<
   );
 
   const activeMeta = viewMeta[activeView];
+  const headerActions =
+    activeView === "automation" ? (
+      <AutomationStatusBadge
+        isEnabled={settings?.enabled}
+        isLoading={loadingSettings}
+        onOpenSettings={() => setActiveView("settings")}
+      />
+    ) : null;
 
   return (
     <div className="app">
@@ -112,7 +121,10 @@ const viewMeta = useMemo<
       </aside>
       <main className="app__content">
         <header className="page-header">
-          <h1>{activeMeta.title}</h1>
+          <div className="page-header__top">
+            <h1>{activeMeta.title}</h1>
+            {headerActions && <div className="page-header__actions">{headerActions}</div>}
+          </div>
           <p>{activeMeta.description}</p>
         </header>
         <div className="page-body">

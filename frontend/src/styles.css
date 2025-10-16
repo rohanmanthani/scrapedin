@@ -238,13 +238,27 @@ a:hover {
   text-align: center;
 }
 
+.page-header__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
 .page-header h1 {
   font-size: 32px;
-  margin: 0 0 8px;
+  margin: 0;
+}
+
+.page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .page-header p {
-  margin: 0;
+  margin: 8px 0 0;
   color: var(--muted);
   max-width: 720px;
   line-height: 1.5;
@@ -433,6 +447,49 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.automation-status-badge {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.6);
+  color: rgba(226, 232, 240, 0.92);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: default;
+  text-decoration: none;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.automation-status-badge[type="button"],
+button.automation-status-badge {
+  cursor: pointer;
+}
+
+.automation-status-badge:hover,
+.automation-status-badge:focus-visible {
+  background: rgba(37, 99, 235, 0.22);
+  border-color: rgba(96, 165, 250, 0.5);
+  color: #f8fafc;
+  outline: none;
+  box-shadow: 0 12px 32px rgba(37, 99, 235, 0.18);
+}
+
+.automation-status-badge:disabled,
+button.automation-status-badge:disabled {
+  cursor: default;
+  opacity: 0.7;
+  background: rgba(15, 23, 42, 0.4);
+  border-color: rgba(148, 163, 184, 0.2);
+  color: rgba(203, 213, 225, 0.75);
+  box-shadow: none;
 }
 
 .automation-status__light {
