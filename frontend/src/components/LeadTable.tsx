@@ -146,7 +146,7 @@ export const LeadTable = () => {
       {isLoading ? (
         <p>Loading leads...</p>
       ) : !leads?.length ? (
-        <p>No leads collected yet. Run Step 2 automations to start scraping prospects.</p>
+        <p>No leads collected yet.</p>
       ) : (
         <div className="table-wrapper">
           <table className="table">
