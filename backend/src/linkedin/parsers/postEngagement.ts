@@ -3,6 +3,8 @@ export interface ExtractedEngagementProfile {
   profileUrl: string;
   headline?: string;
   location?: string;
+  currentTitle?: string;
+  currentCompany?: string;
   reactionLabel?: string;
   commentText?: string;
 }
@@ -12,6 +14,23 @@ export interface EngagementExtractionOptions {
   origin?: string;
   root?: ParentNode | null;
 }
+
+const sanitizeFullName = (raw: string): string => {
+  if (!raw) {
+    return raw;
+  }
+  let value = raw.replace(/\bView\s+[^\n]+?\s+profile\b/gi, " ");
+  value = value.replace(/\b[1-3](?:st|nd|rd|th)?\s+degree\s+connection\b.*$/i, " ");
+  const separators = ["·", "|", "•"];
+  for (const separator of separators) {
+    const index = value.indexOf(separator);
+    if (index > 0) {
+      value = value.slice(0, index);
+    }
+  }
+  value = value.replace(/\s+/g, " ").trim();
+  return value;
+};
 
 export function extractReactors(options?: EngagementExtractionOptions): ExtractedEngagementProfile[] {
   const REACTOR_SELECTORS = [
@@ -115,10 +134,11 @@ export function extractReactors(options?: EngagementExtractionOptions): Extracte
       continue;
     }
 
-    const name =
+    const name = sanitizeFullName(
       anchor.textContent?.trim() ??
-      candidate.querySelector(".reactor-entry__member-name")?.textContent?.trim() ??
-      "";
+        candidate.querySelector(".reactor-entry__member-name")?.textContent?.trim() ??
+        ""
+    );
     if (!name) {
       continue;
     }
@@ -265,10 +285,11 @@ export function extractComments(options?: EngagementExtractionOptions): Extracte
       continue;
     }
 
-    const name =
+    const name = sanitizeFullName(
       extractFirstText(candidate, COMMENT_NAME_SELECTORS) ??
-      anchor.textContent?.trim() ??
-      "";
+        anchor.textContent?.trim() ??
+        ""
+    );
     if (!name) {
       continue;
     }
