@@ -125,18 +125,17 @@ test("extractProfileDetails works with modern LinkedIn profile structure (2024)"
         </div>
         <img class="pv-top-card-profile-picture__image--show" src="https://cdn.example.com/sarah.jpg" />
       </section>
-      <section>
-        <div class="inline-show-more-text">
-          <span aria-hidden="true">Product Manager</span>
-          at <a href="/company/tech-corp/">Tech Corp</a>
-        </div>
-        <ul>
+      <section id="experience">
+        <ul class="pvs-list">
           <li>
-            <div>
-              <span aria-hidden="true">Product Manager</span>
-              <span class="t-14">Tech Corp</span>
-            </div>
-            <span>2020 - Present</span>
+            <span aria-hidden="true">Product Manager</span>
+            <a href="/company/tech-corp/">Tech Corp</a>
+            <span class="pvs-entity__caption-wrapper">2020 - Present · 4 yrs</span>
+          </li>
+          <li>
+            <span aria-hidden="true">Associate Product Manager</span>
+            <a href="/company/old-company/">Old Company</a>
+            <span class="pvs-entity__caption-wrapper">2018 - 2020 · 2 yrs</span>
           </li>
         </ul>
       </section>
@@ -153,6 +152,42 @@ test("extractProfileDetails works with modern LinkedIn profile structure (2024)"
   assert.equal(details.currentCompany, "Tech Corp");
   assert.equal(details.currentCompanyUrl, "https://www.linkedin.com/company/tech-corp/");
   assert.equal(details.currentTitle, "Product Manager");
+});
+
+test("extractProfileDetails prioritizes Experience section over top card", () => {
+  const html = `
+    <main>
+      <section>
+        <div class="ph5">
+          <h1 class="text-heading-xlarge">John Doe</h1>
+          <div class="text-body-medium break-words">Entrepreneur at Featured Company</div>
+        </div>
+      </section>
+      <section id="experience">
+        <ul class="pvs-list">
+          <li>
+            <span aria-hidden="true">Founder and CEO</span>
+            <a href="/company/gopackshot/">GoPackShot</a>
+            <span class="pvs-entity__caption-wrapper">Jan 2023 - Present</span>
+          </li>
+          <li>
+            <span aria-hidden="true">Software Engineer</span>
+            <a href="/company/tradebyte/">Tradebyte</a>
+            <span class="pvs-entity__caption-wrapper">2020 - Dec 2022</span>
+          </li>
+        </ul>
+      </section>
+    </main>
+  `;
+
+  const document = buildDocument(html);
+  const details = extractProfileDetails({ root: document });
+
+  assert.equal(details.fullName, "John Doe");
+  assert.equal(details.headline, "Entrepreneur at Featured Company");
+  assert.equal(details.currentTitle, "Founder and CEO");
+  assert.equal(details.currentCompany, "GoPackShot");
+  assert.equal(details.currentCompanyUrl, "https://www.linkedin.com/company/gopackshot/");
 });
 
 test("extractProfileDetails falls back to any h1 when specific selectors fail", () => {

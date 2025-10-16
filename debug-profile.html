@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkedIn Profile Debug - John Doe | LinkedIn</title>
+    <meta property="og:title" content="John Doe | LinkedIn">
+</head>
+<body>
+    <!-- Modern LinkedIn Profile Structure (2024) -->
+    <main>
+        <!-- Top Card Section -->
+        <section class="pv-top-card">
+            <div class="ph5">
+                <h1 class="text-heading-xlarge">John Doe</h1>
+                <div class="text-body-medium break-words">Entrepreneur and Innovator</div>
+                <span class="text-body-small inline t-black--light break-words">San Francisco Bay Area</span>
+            </div>
+        </section>
+
+        <!-- Experience Section -->
+        <section id="experience">
+            <div class="pvs-list__container">
+                <ul class="pvs-list">
+                    <!-- Current Position -->
+                    <li class="artdeco-list__item pvs-list__item--line-separated">
+                        <div class="display-flex flex-column full-width">
+                            <div class="display-flex align-items-center">
+                                <div class="mr1 t-bold">
+                                    <span aria-hidden="true">Founder and CEO</span>
+                                </div>
+                            </div>
+                            <div class="t-14 t-normal">
+                                <span aria-hidden="true">
+                                    <a href="/company/gopackshot/">GoPackShot</a>
+                                </span>
+                            </div>
+                            <div class="t-14 t-normal t-black--light">
+                                <span class="pvs-entity__caption-wrapper" aria-hidden="true">
+                                    Jan 2023 - Present · 2 yrs
+                                </span>
+                            </div>
+                            <div class="t-14 t-normal t-black--light">
+                                <span aria-hidden="true">San Francisco, California</span>
+                            </div>
+                        </div>
+                    </li>
+
+                    <!-- Previous Position -->
+                    <li class="artdeco-list__item pvs-list__item--line-separated">
+                        <div class="display-flex flex-column full-width">
+                            <div class="display-flex align-items-center">
+                                <div class="mr1 t-bold">
+                                    <span aria-hidden="true">Software Engineer</span>
+                                </div>
+                            </div>
+                            <div class="t-14 t-normal">
+                                <span aria-hidden="true">
+                                    <a href="/company/tradebyte/">Tradebyte</a>
+                                </span>
+                            </div>
+                            <div class="t-14 t-normal t-black--light">
+                                <span class="pvs-entity__caption-wrapper" aria-hidden="true">
+                                    2020 - Dec 2022 · 2 yrs
+                                </span>
+                            </div>
+                            <div class="t-14 t-normal t-black--light">
+                                <span aria-hidden="true">Germany</span>
+                            </div>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Education Section -->
+        <section id="education">
+            <ul class="pvs-list">
+                <li class="artdeco-list__item">
+                    <div>
+                        <h3><span aria-hidden="true">University of Technology</span></h3>
+                        <span class="pvs-entity__degree-name">
+                            <span aria-hidden="true">Bachelor of Science - BS, Computer Science</span>
+                        </span>
+                        <span class="pvs-entity__dates">
+                            <span aria-hidden="true">2016 - 2020</span>
+                        </span>
+                    </div>
+                </li>
+            </ul>
+        </section>
+    </main>
+
+    <!-- Testing Instructions -->
+    <div style="border: 2px solid red; padding: 20px; margin: 20px; background: #fff3cd;">
+        <h2>Debug Instructions</h2>
+        <p><strong>Expected Extraction Results:</strong></p>
+        <ul>
+            <li><strong>Full Name:</strong> John Doe</li>
+            <li><strong>Headline:</strong> Entrepreneur and Innovator</li>
+            <li><strong>Location:</strong> San Francisco Bay Area</li>
+            <li><strong>Current Title:</strong> Founder and CEO</li>
+            <li><strong>Current Company:</strong> GoPackShot</li>
+            <li><strong>Current Company URL:</strong> https://www.linkedin.com/company/gopackshot/</li>
+        </ul>
+
+        <h3>Console Tests:</h3>
+        <p>Open browser console and run these commands:</p>
+        <pre>
+// Test experience section selectors
+document.querySelectorAll("section[id*='experience'] ul.pvs-list > li").length
+// Should return: 2
+
+// Test first experience item
+const firstExp = document.querySelector("section[id*='experience'] ul.pvs-list > li");
+console.log('First exp:', firstExp);
+
+// Test title extraction
+const titleSpans = firstExp.querySelectorAll("span[aria-hidden='true']");
+console.log('All spans:', Array.from(titleSpans).map(s => s.textContent));
+
+// Test company link
+const companyLink = firstExp.querySelector("a[href*='/company/']");
+console.log('Company:', companyLink?.textContent, companyLink?.href);
+
+// Test company name from link
+console.log('Company text:', companyLink?.textContent.trim());
+        </pre>
+    </div>
+
+    <script>
+        // Auto-run debug output
+        console.log('=== LinkedIn Profile Debug ===');
+
+        const expSection = document.querySelector("section[id*='experience']");
+        console.log('Experience section found:', !!expSection);
+
+        const expItems = document.querySelectorAll("section[id*='experience'] ul.pvs-list > li");
+        console.log('Experience items found:', expItems.length);
+
+        if (expItems.length > 0) {
+            const firstExp = expItems[0];
+            console.log('First experience element:', firstExp);
+
+            const allSpans = firstExp.querySelectorAll("span[aria-hidden='true']");
+            console.log('All spans in first exp:', Array.from(allSpans).map(s => s.textContent.trim()));
+
+            const companyLink = firstExp.querySelector("a[href*='/company/']");
+            console.log('Company link found:', !!companyLink);
+            console.log('Company name:', companyLink?.textContent.trim());
+            console.log('Company href:', companyLink?.getAttribute('href'));
+
+            // Check for nested li
+            const hasNestedLi = firstExp.querySelector("ul > li, ol > li");
+            console.log('Has nested li:', !!hasNestedLi);
+        }
+    </script>
+</body>
+</html>

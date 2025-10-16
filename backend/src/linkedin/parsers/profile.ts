@@ -118,10 +118,20 @@ const parseDateRangeParts = (value?: string): { startDate?: string; endDate?: st
 
 const extractExperiences = (root: ParentNode): ExtractedExperience[] => {
   const selectors = [
+    // Modern LinkedIn (2024) - direct li children
+    "section[id*='experience'] ul.pvs-list > li.artdeco-list__item",
     "section[id*='experience'] ul.pvs-list > li",
+    "section[id*='experience'] div.pvs-list__container > ul > li",
+    "section.artdeco-card.pv-profile-card div[class*='pvs-list'] > ul > li",
+
+    // Legacy selectors
     "section#experience-section ul.pv-profile-section__section-info > li",
     "section.experience__section ul > li",
-    "section[data-test='experience-section'] ul > li"
+    "section[data-test='experience-section'] ul > li",
+
+    // Fallback: any section with experience in ID/class
+    "section[id*='experience'] li[class*='pvs-list']",
+    "section[class*='experience'] ul > li"
   ];
   const scopedRoot = root as ParentNode & { querySelectorAll: typeof document.querySelectorAll };
   const nodes: Element[] = [];
@@ -135,20 +145,52 @@ const extractExperiences = (root: ParentNode): ExtractedExperience[] => {
 
   return nodes
     .map((element) => {
-      const title = getFirstMatch(element, [
+      // Modern LinkedIn experience items have nested structure
+      // Try to find the main content container first
+      const contentContainer =
+        element.querySelector("div.display-flex.flex-column.full-width") || element;
+
+      const title = getFirstMatch(contentContainer, [
+        // Modern selectors - look for first bold/prominent span
+        "div.display-flex.align-items-center span[aria-hidden='true']",
+        "div.mr1.t-bold span[aria-hidden='true']",
+        "div.t-bold span[aria-hidden='true']",
+        "span.mr1.hoverable-link-text.t-bold span[aria-hidden='true']",
+        "div[class*='t-bold'] span[aria-hidden='true']",
+
+        // Legacy selectors
         "span[data-test='experience-entity-title']",
         "span[data-field='experience-title']",
-        "span[aria-hidden='true']",
         "span.t-14.t-black.t-bold",
-        "div.display-flex.flex-column.full-width.align-self-center span:first-child"
+        "div.display-flex.flex-column.full-width.align-self-center span:first-child",
+
+        // Generic fallback - first aria-hidden span
+        "span[aria-hidden='true']"
       ]);
-      const company = getFirstMatch(element, [
-        "span[data-test='experience-entity-subtitle']",
-        "span[data-field='experience-company-name']",
-        "p.pv-entity__secondary-title",
-        "span.t-14.t-normal",
-        "div.display-flex.flex-column.full-width.align-self-center span:nth-child(2)"
-      ]);
+
+      // Try to get company from link first (most reliable)
+      let company: string | undefined;
+      const companyLink = element.querySelector("a[href*='/company/']");
+      if (companyLink) {
+        company = cleanText(companyLink.textContent);
+      }
+
+      // Fallback to text-based selectors
+      if (!company) {
+        company = getFirstMatch(contentContainer, [
+          // Modern selectors - company is usually after title
+          "span.t-14.t-normal span[aria-hidden='true']",
+          "div.t-14.t-normal span[aria-hidden='true']",
+          "span.t-14.t-normal.t-black span[aria-hidden='true']",
+
+          // Legacy selectors
+          "span[data-test='experience-entity-subtitle']",
+          "span[data-field='experience-company-name']",
+          "p.pv-entity__secondary-title",
+          "span.t-14.t-normal",
+          "div.display-flex.flex-column.full-width.align-self-center span:nth-child(2)"
+        ]);
+      }
       const dateRangeText = getFirstMatch(element, [
         "span[data-test='experience-entity-date-range']",
         "span[data-field='experience-date-range']",
@@ -496,95 +538,131 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
     location = undefined;
   }
 
-  // Extract company name and URL together from company links
+  // PRIORITY: Extract from Experience section first (most accurate)
+  const experiences = extractExperiences(root);
+
+  // Find current experience (first without endDate, or just first one)
+  const currentExperience = experiences.find((exp) => !exp.endDate) ?? experiences[0];
+
   let currentCompany: string | undefined;
   let currentCompanyUrl: string | undefined;
-
-  const companyLinkSelectors = [
-    // Modern selectors - company links
-    "div.inline-show-more-text a[href*='/company/']",
-    ".pv-top-card--experience-list-content a[href*='/company/']",
-    "div.pv-text-details__right-panel a[href*='/company/']",
-
-    // Legacy selectors
-    ".top-card-layout__entity-info-item a[href*='/company/']",
-    ".pv-top-card--experience-list a[href*='/company/']",
-    "a[data-field='experience_company_logo']",
-    ".pvs-list__item--with-top-padding a[href*='/company/']",
-
-    // Generic fallbacks
-    "main section a[href*='/company/']:first-of-type",
-    "div[class*='top-card'] a[href*='/company/']",
-    ".pv-text-details a[href*='/company/']",
-    "ul.pv-top-card--experience-list a[href*='/company/']"
-  ];
-
-  const scopedRoot = root as ParentNode & { querySelector: typeof document.querySelector };
-  for (const selector of companyLinkSelectors) {
-    const companyLink = scopedRoot.querySelector(selector);
-    if (companyLink instanceof Element) {
-      const href = companyLink.getAttribute("href");
-      const text = cleanText(companyLink.textContent);
-      if (text) {
-        currentCompany = text;
-        if (href) {
-          try {
-            const url = new URL(href, "https://www.linkedin.com");
-            currentCompanyUrl = url.toString();
-          } catch {
-            currentCompanyUrl = href;
-          }
-        }
-        break;
-      }
-    }
-  }
-
-  // Extract current title (job title, not headline)
-  // We need to be careful not to extract the company name or headline
   let currentTitle: string | undefined;
 
-  const titleSelectors = [
-    // Modern selectors - look for title in experience section, NOT headline
-    "div.inline-show-more-text span[aria-hidden='true']:not(:has(a))",
-    ".pv-top-card--experience-list li:first-child span[aria-hidden='true']:first-child",
-    ".pv-top-card--experience-list-content li:first-child span[aria-hidden='true']:first-child",
-    "div.pv-text-details__right-panel li:first-child span[aria-hidden='true']:first-child",
-    "div.pvs-list__item--with-top-padding div:first-child span[aria-hidden='true']:first-child",
+  // Extract from the current experience if available
+  if (currentExperience) {
+    currentTitle = currentExperience.title;
+    currentCompany = currentExperience.company;
 
-    // Legacy selectors
-    ".top-card-layout__entity-info-item div:first-child",
-    ".pv-text-details__right-panel ul li:first-child > div > span:first-child",
+    // Try to find the company URL from the experience section
+    // Try to extract company URL from the experience section
+    const experienceSectionSelectors = [
+      "section[id*='experience'] ul.pvs-list > li.artdeco-list__item",
+      "section[id*='experience'] ul.pvs-list > li",
+      "section[id*='experience'] div.pvs-list__container > ul > li",
+      "section#experience-section ul.pv-profile-section__section-info > li",
+      "section.experience__section ul > li",
+      "section[data-test='experience-section'] ul > li",
+      "div.pvs-list__container > ul > li"
+    ];
 
-    // Generic fallbacks - look for first span in experience lists
-    "ul.pv-top-card--experience-list li:first-child span[aria-hidden='true']:first-child",
-    "div[class*='experience'] li:first-child div:first-child span:first-child"
-  ];
-
-  for (const selector of titleSelectors) {
-    const titleElement = scopedRoot.querySelector(selector);
-    if (titleElement instanceof Element) {
-      const text = cleanText(titleElement.textContent);
-      // Make sure we didn't accidentally grab the company name or headline
-      if (text && text !== currentCompany && text !== headline) {
-        currentTitle = text;
-        break;
+    const scopedRoot = root as ParentNode & { querySelector: typeof document.querySelector };
+    for (const selector of experienceSectionSelectors) {
+      const firstExpItem = scopedRoot.querySelector(selector);
+      if (firstExpItem instanceof Element) {
+        const companyLink = firstExpItem.querySelector("a[href*='/company/']");
+        if (companyLink instanceof Element) {
+          const href = companyLink.getAttribute("href");
+          if (href) {
+            try {
+              const url = new URL(href, "https://www.linkedin.com");
+              currentCompanyUrl = url.toString();
+            } catch {
+              currentCompanyUrl = href;
+            }
+            break;
+          }
+        }
       }
     }
   }
 
-  const primaryExperience = findPrimaryExperience(root);
-  if (primaryExperience) {
-    const experience = extractFromExperience(primaryExperience);
-    if (!currentTitle && experience.title) {
-      currentTitle = experience.title;
+  // FALLBACK: If experience section didn't provide data, try top card
+  if (!currentCompany || !currentTitle) {
+    const companyLinkSelectors = [
+      // Modern selectors - company links in top card area
+      "div.inline-show-more-text a[href*='/company/']",
+      ".pv-top-card--experience-list-content a[href*='/company/']",
+      "div.pv-text-details__right-panel a[href*='/company/']",
+      "div.ph5 a[href*='/company/']",
+      "div.mt2 a[href*='/company/']",
+
+      // Legacy selectors
+      ".top-card-layout__entity-info-item a[href*='/company/']",
+      ".pv-top-card--experience-list a[href*='/company/']",
+      "a[data-field='experience_company_logo']",
+
+      // Generic fallbacks
+      "main a[href*='/company/']:first-of-type",
+      "div[class*='top-card'] a[href*='/company/']",
+      ".pv-text-details a[href*='/company/']"
+    ];
+
+    const scopedRoot = root as ParentNode & { querySelector: typeof document.querySelector };
+
+    if (!currentCompany) {
+      for (const selector of companyLinkSelectors) {
+        const companyLink = scopedRoot.querySelector(selector);
+        if (companyLink instanceof Element) {
+          const href = companyLink.getAttribute("href");
+          const text = cleanText(companyLink.textContent);
+          if (text) {
+            currentCompany = text;
+            if (href && !currentCompanyUrl) {
+              try {
+                const url = new URL(href, "https://www.linkedin.com");
+                currentCompanyUrl = url.toString();
+              } catch {
+                currentCompanyUrl = href;
+              }
+            }
+            break;
+          }
+        }
+      }
     }
-    if (!currentCompany && experience.company) {
-      currentCompany = experience.company;
+
+    if (!currentTitle) {
+      const titleSelectors = [
+        // Modern selectors - look for title in top card
+        "div.inline-show-more-text span[aria-hidden='true']:first-child",
+        "div.ph5 div.mt2 span[aria-hidden='true']:first-child",
+        ".pv-top-card--experience-list li:first-child span[aria-hidden='true']:first-child",
+        ".pv-top-card--experience-list-content li:first-child span[aria-hidden='true']:first-child",
+        "div.pv-text-details__right-panel li:first-child span[aria-hidden='true']:first-child",
+        "div.pv-text-details__right-panel div.t-bold span[aria-hidden='true']",
+
+        // Legacy selectors
+        ".top-card-layout__entity-info-item div:first-child",
+        ".pv-text-details__right-panel ul li:first-child > div > span:first-child",
+
+        // Generic fallbacks
+        "ul.pv-top-card--experience-list li:first-child span[aria-hidden='true']:first-child",
+        "div.mt2 div:first-child"
+      ];
+
+      for (const selector of titleSelectors) {
+        const titleElement = scopedRoot.querySelector(selector);
+        if (titleElement instanceof Element) {
+          const text = cleanText(titleElement.textContent);
+          // Make sure we didn't accidentally grab the company name or headline
+          if (text && text !== currentCompany && text !== headline) {
+            currentTitle = text;
+            break;
+          }
+        }
+      }
     }
   }
-
-  const experiences = extractExperiences(root);
   const education = extractEducation(root);
 
   const profileImageUrl = getFirstAttribute(

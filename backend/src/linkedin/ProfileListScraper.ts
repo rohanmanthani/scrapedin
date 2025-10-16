@@ -55,6 +55,26 @@ export class ProfileListScraper extends BaseLinkedInClient {
 
         await this.openContactInfo(page);
         const details = await page.evaluate(extractProfileDetails);
+
+        // Debug logging
+        logger.debug(
+          {
+            profileUrl: normalizedUrl,
+            experiencesCount: details.experiences?.length ?? 0,
+            experiences: details.experiences?.map((exp) => ({
+              title: exp.title,
+              company: exp.company,
+              dateRange: exp.dateRangeText,
+              hasEndDate: !!exp.endDate
+            })),
+            extractedTitle: details.currentTitle,
+            extractedCompany: details.currentCompany,
+            extractedCompanyUrl: details.currentCompanyUrl,
+            headline: details.headline
+          },
+          "Extracted profile details with experience data"
+        );
+
         if (!details.fullName) {
           const pageTitle = await page.title();
           const firstH1 = await page.$eval("h1", (el) => el?.textContent?.trim()).catch(() => null);

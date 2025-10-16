@@ -1,7 +1,7 @@
 # LinkedIn Profile Selector Fixes
 
 ## Problem
-The LinkedIn scraper was failing with "Profile missing first name" errors, and was incorrectly extracting company name and title fields. Company name was pointing to title, title was pointing to headline, and company URL was missing entirely.
+The LinkedIn scraper was failing with "Profile missing first name" errors, and was incorrectly extracting company name and title fields. The scraper was pulling company and title from the wrong sections (top card featured companies instead of actual Experience section). For example, if someone worked at "GoPackShot" (current) and previously at "Tradebyte", it would show "Tradebyte" as the current company. Company URL was also missing entirely.
 
 ## Changes Made
 
@@ -29,17 +29,23 @@ Added comprehensive selector fallbacks for extracting the profile name (`fullNam
 **Ultimate Fallback:**
 - Any `<h1>` element on the page (with length validation)
 
-### 2. Fixed Company and Title Extraction
+### 2. Fixed Company and Title Extraction with Experience Section Priority
 
-**Rewrote the logic to properly distinguish between:**
-- `currentCompany` - Company name extracted from company links (`<a href="/company/...">`)
-- `currentCompanyUrl` - Full URL to the company's LinkedIn page (NEW field)
-- `currentTitle` - Current job position (NOT the headline, which is the descriptive text under the name)
+**Completely rewrote the extraction logic with proper prioritization:**
 
-**Key changes:**
-- Company name and URL are now extracted together from company links to ensure they match
-- Title extraction explicitly excludes company names and headlines to prevent confusion
-- Added selectors that target the experience section structure rather than just matching class names
+1. **PRIORITY: Experience Section First** - Extract from the actual Experience section to get the most recent/current position
+2. **FALLBACK: Top Card** - Only use top card selectors if Experience section extraction fails
+
+**What's extracted:**
+- `currentCompany` - Company name from the first non-ended experience (or first experience if all have end dates)
+- `currentCompanyUrl` - Full LinkedIn company URL extracted from company links in Experience section (NEW field)
+- `currentTitle` - Job title from the first non-ended experience (NOT the headline)
+
+**Why this matters:**
+- LinkedIn's top card sometimes shows featured/highlighted companies, not necessarily current employment
+- The Experience section is structured data with the actual employment history
+- First experience without an end date = current position
+- This approach is more reliable and matches user expectations
 
 ### 3. Enhanced Other Field Selectors
 
@@ -133,15 +139,34 @@ If you encounter "Profile missing first name" errors again:
 
 ### Company and Title Extraction Strategy
 
-The new extraction logic:
-1. **Company Links First**: Searches for `<a href="/company/...">` elements to get both company name and URL
-2. **Title from Experience**: Extracts title from experience section, explicitly avoiding headline and company name
-3. **Validation**: Ensures extracted title ≠ company name and title ≠ headline to prevent misidentification
+The new extraction logic follows a strict priority order:
 
-This approach is more robust because:
-- Company links are semantic and less likely to change
-- Extracting name and URL together ensures consistency
-- Explicit validation prevents field confusion
+**Phase 1: Experience Section (PRIMARY)**
+1. Extract all experiences using `extractExperiences(root)`
+2. Find current experience: First entry without `endDate`, or just first entry
+3. Extract `currentTitle` from experience's title field
+4. Extract `currentCompany` from experience's company field (prefers company links over text)
+5. Extract `currentCompanyUrl` by finding `<a href="/company/...">` in first experience list item
+
+**Phase 2: Top Card Fallback (SECONDARY)**
+- Only runs if Phase 1 didn't find company or title
+- Searches top card sections for company links and title text
+- Uses validation: extracted title ≠ company name and title ≠ headline
+
+**Why Experience Section First?**
+- Experience section contains structured employment history with dates
+- First non-ended experience = current position (semantic meaning)
+- Top card can show featured/highlighted content that's not current employment
+- More reliable for extracting actual job information vs. promotional content
+
+**Example:**
+If a profile shows:
+- Top card: "Entrepreneur at Tradebyte" (featured/past company)
+- Experience: "Founder and CEO at GoPackShot (2023 - Present)"
+- Experience: "Software Engineer at Tradebyte (2020 - 2022)"
+
+Result: currentTitle = "Founder and CEO", currentCompany = "GoPackShot" ✓
+(Old logic would have incorrectly used "Tradebyte" from top card)
 
 ## Related Files Modified
 
