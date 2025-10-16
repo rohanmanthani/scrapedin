@@ -178,7 +178,9 @@ const extractExperiences = (root: ParentNode): ExtractedExperience[] => {
       } satisfies ExtractedExperience;
     })
     .filter((experience) =>
-      Boolean(experience.title || experience.company || experience.dateRangeText || experience.description)
+      Boolean(
+        experience.title || experience.company || experience.dateRangeText || experience.description
+      )
     );
 };
 
@@ -242,13 +244,18 @@ const collectPhoneNumbers = (roots: ParentNode[]): string[] => {
   ];
   roots.forEach((root) => {
     selectors.forEach((selector) => {
-      const scopedRoot = root as ParentNode & { querySelectorAll: typeof document.querySelectorAll };
+      const scopedRoot = root as ParentNode & {
+        querySelectorAll: typeof document.querySelectorAll;
+      };
       scopedRoot.querySelectorAll(selector).forEach((element) => {
         if (!(element instanceof Element)) {
           return;
         }
         const href = element.getAttribute("href");
-        let value = href && href.toLowerCase().startsWith("tel:") ? href.slice(4) : element.textContent ?? "";
+        let value =
+          href && href.toLowerCase().startsWith("tel:")
+            ? href.slice(4)
+            : (element.textContent ?? "");
         value = value.replace(/\s+/g, " ").trim();
         if (value) {
           numbers.add(value);
@@ -315,14 +322,39 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
     querySelectorAll: typeof document.querySelectorAll;
   };
 
+  // LinkedIn frequently changes their DOM structure and class names, so we use multiple
+  // selectors ordered from most specific/modern to most generic. This strategy ensures
+  // the scraper continues working even when LinkedIn updates their UI.
+  // The getFirstMatch function will try each selector in order until one returns a value.
   let fullName = getFirstMatch(root, [
+    // Modern LinkedIn selectors (2024)
     "h1.text-heading-xlarge",
+    "h1.inline.t-24.v-align-middle.break-words",
+    "div.ph5 h1",
+    "main > div > section > div > div > div > div > h1",
+
+    // Legacy selectors
     "h1.pv-top-card-section__name",
     "h1[data-test-id='hero-title']",
     ".pv-text-details__left-panel h1",
     ".top-card-layout__title",
     "h1[data-test-id='member-name']",
-    "div[data-view-name='profile-top-card'] h1"
+    "div[data-view-name='profile-top-card'] h1",
+
+    // Generic structure-based fallbacks
+    "main section h1",
+    "main div.artdeco-card h1",
+    "main h1",
+    ".pv-top-card div h1",
+    ".scaffold-layout__main h1",
+    "div[class*='top-card'] h1",
+    "div[class*='profile'] h1:first-of-type",
+    "section[class*='top-card'] h1",
+
+    // Ember/dynamic ID fallbacks
+    "h1[id*='ember']",
+    "h1[class*='profile']",
+    "h1[class*='name']"
   ]);
 
   if (!fullName) {
@@ -404,41 +436,97 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
     }
   }
 
+  // Ultimate fallback: try to get any h1 element's text
+  if (!fullName) {
+    const scopedRoot = root as ParentNode & { querySelector: typeof document.querySelector };
+    const anyH1 = scopedRoot.querySelector("h1");
+    if (anyH1?.textContent) {
+      const cleaned = cleanText(anyH1.textContent);
+      if (cleaned && cleaned.length > 1 && cleaned.length < 100) {
+        fullName = cleaned;
+      }
+    }
+  }
+
   const headline = getFirstMatch(root, [
+    // Modern selectors
     "div.text-body-medium.break-words",
+    "div.text-body-medium",
+    ".ph5 .text-body-medium",
+    "div.ph5 div.text-body-medium",
+
+    // Legacy selectors
     ".pv-top-card-section__headline",
     ".top-card-layout__headline",
     ".pv-text-details__left-panel div[data-test-id='hero-title-subtitle']",
-    "div[data-field='experience-headline']"
+    "div[data-field='experience-headline']",
+    ".pv-top-card div.text-body-medium",
+
+    // Generic fallbacks
+    "main section div.text-body-medium:first-of-type",
+    ".pv-text-details__left-panel > div:nth-child(2)",
+    "div[class*='top-card'] div[class*='headline']",
+    "main h1 + div"
   ]);
 
   let location = getFirstMatch(root, [
+    // Modern selectors
     "span.text-body-small.inline.t-black--light.break-words",
+    "span.text-body-small.inline",
+    ".ph5 .text-body-small",
+    "div.mt2.text-body-small",
+    "div.ph5 span.text-body-small",
+
+    // Legacy selectors
     ".pv-top-card__subline-item",
     ".top-card-layout__entity-info span[data-test-id='hero-location']",
     "div[data-field='experience-location']",
     "span[data-test-id='top-card-location']",
     "div[data-test-id='member-location']",
     ".pv-text-details__left-panel span.inline-flex",
-    ".pv-top-card--list-bullet span[aria-hidden='true']"
+    ".pv-top-card--list-bullet span[aria-hidden='true']",
+
+    // Generic fallbacks
+    "main section span.text-body-small",
+    "div[class*='top-card'] span[class*='location']",
+    ".pv-text-details__left-panel > div > span.text-body-small"
   ]);
   if (location && /connection|follower/i.test(location)) {
     location = undefined;
   }
 
   let currentCompany = getFirstMatch(root, [
+    // Modern selectors
     ".pv-text-details__right-panel li:first-child span[aria-hidden='true']",
     ".pv-text-details__right-panel li:first-child span",
+    "div.inline-show-more-text a[href*='/company/']",
+    ".pv-top-card--experience-list-content a[href*='/company/']",
+
+    // Legacy selectors
     ".top-card-layout__entity-info-item a[href*='/company/']",
     ".pv-top-card--experience-list a[href*='/company/'] span[aria-hidden='true']",
-    "a[data-field='experience_company_logo'] span[aria-hidden='true']"
+    "a[data-field='experience_company_logo'] span[aria-hidden='true']",
+
+    // Generic fallbacks
+    "main section a[href*='/company/']:first-of-type",
+    "div[class*='top-card'] a[href*='/company/']",
+    ".pv-text-details a[href*='/company/']"
   ]);
 
   let currentTitle = getFirstMatch(root, [
+    // Modern selectors
     ".pv-top-card--experience-list li span[aria-hidden='true']",
     ".pv-text-details__right-panel li:first-child span[aria-hidden='true']",
+    ".pv-top-card--experience-list-content li span[aria-hidden='true']",
+    "div.inline-show-more-text span[aria-hidden='true']",
+
+    // Legacy selectors
     ".top-card-layout__entity-info-item span[aria-hidden='true']",
-    ".pv-text-details__right-panel li:first-child span"
+    ".pv-text-details__right-panel li:first-child span",
+
+    // Generic fallbacks
+    ".pv-text-details__right-panel li:first-of-type span",
+    "div[class*='experience'] li:first-child span[aria-hidden='true']"
   ]);
 
   const primaryExperience = findPrimaryExperience(root);
@@ -455,13 +543,20 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
   const experiences = extractExperiences(root);
   const education = extractEducation(root);
 
-  const profileImageUrl = getFirstAttribute(root, [
-    "img.profile-photo-edit__preview",
-    "img.pv-top-card-profile-picture__image",
-    "img[data-test-id='profile-photo']",
-    "img.top-card-profile-picture__image",
-    "img.profile-photo-edit__preview-image"
-  ], "src");
+  const profileImageUrl = getFirstAttribute(
+    root,
+    [
+      "img.profile-photo-edit__preview",
+      "img.pv-top-card-profile-picture__image",
+      "img[data-test-id='profile-photo']",
+      "img.top-card-profile-picture__image",
+      "img.profile-photo-edit__preview-image",
+      "img.pv-top-card-profile-picture__image--show",
+      "button.pv-top-card-profile-picture img",
+      "div.pv-top-card__photo img"
+    ],
+    "src"
+  );
 
   const contactRoots: ParentNode[] = [root];
   root
@@ -476,11 +571,15 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
   const email = cleanEmail(
     contactRoots
       .map((contactRoot) =>
-        getFirstAttribute(contactRoot, [
-          "a[href^='mailto:']",
-          "a[data-test-id='top-card-contact-info-email']",
-          "a[data-field='email']"
-        ], "href")
+        getFirstAttribute(
+          contactRoot,
+          [
+            "a[href^='mailto:']",
+            "a[data-test-id='top-card-contact-info-email']",
+            "a[data-field='email']"
+          ],
+          "href"
+        )
       )
       .find((value): value is string => Boolean(value))
   );
@@ -606,7 +705,9 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
       "section.experience__section ul > li",
       "section[data-test='experience-section'] ul > li"
     ];
-    const scopedRoot = target as ParentNode & { querySelectorAll: typeof document.querySelectorAll };
+    const scopedRoot = target as ParentNode & {
+      querySelectorAll: typeof document.querySelectorAll;
+    };
     const nodes: Element[] = [];
     selectors.forEach((selector) => {
       scopedRoot.querySelectorAll(selector).forEach((experienceElement) => {
@@ -662,7 +763,12 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
         } satisfies ExtractedExperience;
       })
       .filter((experience) =>
-        Boolean(experience.title || experience.company || experience.dateRangeText || experience.description)
+        Boolean(
+          experience.title ||
+            experience.company ||
+            experience.dateRangeText ||
+            experience.description
+        )
       );
   }
 
@@ -673,7 +779,9 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
       "section.education__section ul > li",
       "section[data-test='education-section'] ul > li"
     ];
-    const scopedRoot = target as ParentNode & { querySelectorAll: typeof document.querySelectorAll };
+    const scopedRoot = target as ParentNode & {
+      querySelectorAll: typeof document.querySelectorAll;
+    };
     const nodes: Element[] = [];
     selectors.forEach((selector) => {
       scopedRoot.querySelectorAll(selector).forEach((educationElement) => {
@@ -712,7 +820,9 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
           dateRangeText
         } satisfies ExtractedEducation;
       })
-      .filter((educationEntry) => Boolean(educationEntry.school || educationEntry.degree || educationEntry.fieldOfStudy));
+      .filter((educationEntry) =>
+        Boolean(educationEntry.school || educationEntry.degree || educationEntry.fieldOfStudy)
+      );
   }
 
   function collectPhoneNumbers(roots: ParentNode[]): string[] {
@@ -726,13 +836,18 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
     ];
     roots.forEach((contactRoot) => {
       selectors.forEach((selector) => {
-        const scopedRoot = contactRoot as ParentNode & { querySelectorAll: typeof document.querySelectorAll };
+        const scopedRoot = contactRoot as ParentNode & {
+          querySelectorAll: typeof document.querySelectorAll;
+        };
         scopedRoot.querySelectorAll(selector).forEach((element) => {
           if (!(element instanceof Element)) {
             return;
           }
           const href = element.getAttribute("href");
-          let value = href && href.toLowerCase().startsWith("tel:") ? href.slice(4) : element.textContent ?? "";
+          let value =
+            href && href.toLowerCase().startsWith("tel:")
+              ? href.slice(4)
+              : (element.textContent ?? "");
           value = value.replace(/\s+/g, " ").trim();
           if (value) {
             numbers.add(value);
@@ -758,7 +873,9 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
 
     const summaries = new Set<string>();
     for (const root of roots) {
-      const scopedRoot = root as ParentNode & { querySelectorAll: typeof document.querySelectorAll };
+      const scopedRoot = root as ParentNode & {
+        querySelectorAll: typeof document.querySelectorAll;
+      };
       selectors.forEach((selector) => {
         scopedRoot.querySelectorAll(selector).forEach((element) => {
           if (element instanceof Element) {
@@ -808,7 +925,9 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
     return Math.round(base);
   }
 
-  function deriveCurrentCompanyStartedAt(experiencesList: ExtractedExperience[]): string | undefined {
+  function deriveCurrentCompanyStartedAt(
+    experiencesList: ExtractedExperience[]
+  ): string | undefined {
     for (const experience of experiencesList) {
       if (!experience) {
         continue;
@@ -820,7 +939,11 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
     return experiencesList[0]?.startDate ?? experiencesList[0]?.dateRangeText ?? undefined;
   }
 
-  function getFirstAttribute(target: ParentNode, selectors: string[], attribute: string): string | undefined {
+  function getFirstAttribute(
+    target: ParentNode,
+    selectors: string[],
+    attribute: string
+  ): string | undefined {
     const scopedRoot = target as ParentNode & { querySelector: typeof document.querySelector };
     for (const selector of selectors) {
       const element = scopedRoot.querySelector(selector);

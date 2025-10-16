@@ -113,3 +113,55 @@ test("extractProfileDetails falls back to metadata when heading is missing", () 
 
   assert.equal(details.fullName, "Kamil Czaja");
 });
+
+test("extractProfileDetails works with modern LinkedIn profile structure (2024)", () => {
+  const html = `
+    <main>
+      <section>
+        <div class="ph5">
+          <h1 class="text-heading-xlarge">Sarah Johnson</h1>
+          <div class="text-body-medium break-words">Senior Product Manager at Tech Corp</div>
+          <span class="text-body-small inline t-black--light break-words">San Francisco Bay Area</span>
+        </div>
+        <img class="pv-top-card-profile-picture__image--show" src="https://cdn.example.com/sarah.jpg" />
+      </section>
+      <section>
+        <ul>
+          <li>
+            <div>
+              <span aria-hidden="true">Product Manager</span>
+              <span class="t-14">Tech Corp</span>
+            </div>
+            <span>2020 - Present</span>
+          </li>
+        </ul>
+      </section>
+    </main>
+  `;
+
+  const document = buildDocument(html);
+  const details = extractProfileDetails({ root: document });
+
+  assert.equal(details.fullName, "Sarah Johnson");
+  assert.equal(details.headline, "Senior Product Manager at Tech Corp");
+  assert.equal(details.location, "San Francisco Bay Area");
+  assert.equal(details.profileImageUrl, "https://cdn.example.com/sarah.jpg");
+});
+
+test("extractProfileDetails falls back to any h1 when specific selectors fail", () => {
+  const html = `
+    <main>
+      <section>
+        <div class="some-unknown-class">
+          <h1>John Smith</h1>
+          <div>Software Engineer</div>
+        </div>
+      </section>
+    </main>
+  `;
+
+  const document = buildDocument(html);
+  const details = extractProfileDetails({ root: document });
+
+  assert.equal(details.fullName, "John Smith");
+});

@@ -46,7 +46,9 @@ export class ProfileListScraper extends BaseLinkedInClient {
         });
         await this.randomDelay();
         try {
-          await page.waitForSelector("main", { timeout: Math.min(this.settings.pageTimeoutMs, 8000) });
+          await page.waitForSelector("main", {
+            timeout: Math.min(this.settings.pageTimeoutMs, 8000)
+          });
         } catch {
           // Continue even if the main selector is slow to appear.
         }
@@ -54,7 +56,26 @@ export class ProfileListScraper extends BaseLinkedInClient {
         await this.openContactInfo(page);
         const details = await page.evaluate(extractProfileDetails);
         if (!details.fullName) {
-          logger.warn({ profileUrl: normalizedUrl }, "Profile missing a discoverable full name; skipping");
+          const pageTitle = await page.title();
+          const firstH1 = await page.$eval("h1", (el) => el?.textContent?.trim()).catch(() => null);
+          const metaTitle = await page
+            .$eval("meta[property='og:title']", (el) => el?.getAttribute("content"))
+            .catch(() => null);
+          logger.warn(
+            {
+              profileUrl: normalizedUrl,
+              pageTitle,
+              firstH1,
+              metaTitle,
+              extractedDetails: {
+                headline: details.headline,
+                location: details.location,
+                currentTitle: details.currentTitle,
+                currentCompany: details.currentCompany
+              }
+            },
+            "Profile missing a discoverable full name; skipping. Page title and other extracted data included for debugging."
+          );
           continue;
         }
 
@@ -78,7 +99,8 @@ export class ProfileListScraper extends BaseLinkedInClient {
     capturedAt: string
   ): LeadRecord {
     const experiences = details.experiences ?? [];
-    const currentExperience = experiences.find((experience) => !experience.endDate) ?? experiences[0];
+    const currentExperience =
+      experiences.find((experience) => !experience.endDate) ?? experiences[0];
     const previousCompanies = experiences
       .filter((experience) => experience !== currentExperience)
       .map((experience) => ({
