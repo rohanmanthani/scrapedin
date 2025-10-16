@@ -43,7 +43,7 @@ const SENIORITY_OPTIONS: Array<{ value: SalesNavSeniority; label: string }> = [
   { value: "ENTRY", label: "Entry" }
 ];
 
-export const AutomationDashboard = ({ onOpenSettings }: AutomationDashboardProps) => {
+export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: AutomationDashboardProps) => {
   const queryClient = useQueryClient();
 
   const { data: settings } = useQuery({
@@ -1063,11 +1063,11 @@ export const AutomationDashboard = ({ onOpenSettings }: AutomationDashboardProps
           </div>
         ) : null}
         <div className="table-wrapper">
-          <table className="table">
+          <table className="table automation-table">
             <thead>
               <tr>
                 <th>Task</th>
-                <th>Details</th>
+                <th className="automation-table__details-heading">Details</th>
                 <th>Status</th>
                 <th>Scheduled</th>
                 <th>Started</th>
@@ -1078,7 +1078,7 @@ export const AutomationDashboard = ({ onOpenSettings }: AutomationDashboardProps
             <tbody>
               {linkedTasks.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="muted">
+                  <td colSpan={7} className="muted">
                     No automation jobs yet. Use “Add New” to draft your first automation.
                   </td>
                 </tr>
@@ -1100,8 +1100,8 @@ export const AutomationDashboard = ({ onOpenSettings }: AutomationDashboardProps
                         <strong>{taskName}</strong>
                         <div className="muted">{typeLabel}</div>
                       </td>
-                      <td>
-                        <div className="muted">{detailText}</div>
+                      <td className="automation-table__details">
+                        <div className="muted automation-table__details-text">{detailText}</div>
                       </td>
                       <td>
                         <span className={`status-pill status-pill--${task.status === "succeeded" ? "ok" : task.status === "failed" || task.status === "cancelled" ? "error" : "warn"}`}>
