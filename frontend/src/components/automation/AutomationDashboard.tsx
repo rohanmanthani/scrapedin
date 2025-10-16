@@ -1132,11 +1132,11 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                             ) : task.status === "pending" || task.status === "queued" || task.status === "running" ? (
                               <button
                                 type="button"
-                                className="button button--secondary"
+                                className="button button--danger"
                                 onClick={() => pauseTask.mutate(task.id)}
                                 disabled={pauseTask.isLoading}
                               >
-                                Pause
+                                {pauseTask.isLoading ? "Pausing..." : "Pause"}
                               </button>
                             ) : (
                               <button
