@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { FormEvent, JSX } from "react";
+import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AutoPlanResponse, SalesNavSeniority, SearchPreset, SearchTask, SearchTaskType } from "../../types";
 import { apiClient } from "../../api/client";
@@ -942,6 +942,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   const handleSubmitCreateIcp = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      setCreateError(null);
       const commandName = icpCommandName.trim();
       if (!commandName) {
         setCreateError("Name your automation to continue.");
@@ -960,6 +961,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   const handleSubmitCreateAccounts = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      setCreateError(null);
       const name = accountsName.trim();
       if (!name) {
         setCreateError("Name your automation to continue.");
@@ -982,6 +984,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   const handleSubmitCreatePosts = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      setCreateError(null);
       const name = postsName.trim();
       if (!name) {
         setCreateError("Name your automation to continue.");
@@ -1018,6 +1021,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   const handleSubmitCreateProfiles = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      setCreateError(null);
       const urls = parseListInput(profilesInput);
       if (urls.length === 0) {
         setCreateError("Add at least one LinkedIn profile URL.");
@@ -1854,154 +1858,6 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                   submitHandler = handleSubmitCreateIcp;
                   title = "Create Automation";
                   description = "Configure your automation parameters.";
-              }
-
-              let formContent: JSX.Element | null = null;
-              if (createMode === "icp") {
-                formContent = (
-                  <div className="stack">
-                    <div className="input-group">
-                      <label htmlFor="icp-command-name">Name (optional)</label>
-                      <input
-                        id="icp-command-name"
-                        value={icpCommandName}
-                        onChange={(event) => setIcpCommandName(event.target.value)}
-                        placeholder="e.g., HR SaaS expansion"
-                      />
-                    </div>
-                    <div className="input-group">
-                      <label htmlFor="icp-prompt">Describe your ICP</label>
-                      <textarea
-                        id="icp-prompt"
-                        rows={6}
-                        value={icpPrompt}
-                        onChange={(event) => setIcpPrompt(event.target.value)}
-                        placeholder="Target mid-market HR leaders in SaaS companies across North America..."
-                      />
-                    </div>
-                  </div>
-                );
-              } else if (createMode === "accounts") {
-                formContent = (
-                  <div className="stack">
-                    <div className="input-group">
-                      <label htmlFor="accounts-name">Task name (optional)</label>
-                      <input
-                        id="accounts-name"
-                        value={accountsName}
-                        onChange={(event) => setAccountsName(event.target.value)}
-                        placeholder="e.g., Monitor competitor followers"
-                      />
-                    </div>
-                    <div className="input-group">
-                      <label htmlFor="accounts-input">LinkedIn company URLs</label>
-                      <textarea
-                        id="accounts-input"
-                        rows={6}
-                        value={accountsInput}
-                        onChange={(event) => setAccountsInput(event.target.value)}
-                        placeholder={`https://www.linkedin.com/company/example-one\nhttps://www.linkedin.com/company/example-two`}
-                      />
-                      <small className="muted">Separate each company by a new line or comma.</small>
-                    </div>
-                    <div className="input-group">
-                      <label htmlFor="accounts-leadlist">Target lead list (optional)</label>
-                      <input
-                        id="accounts-leadlist"
-                        value={accountsLeadList}
-                        onChange={(event) => setAccountsLeadList(event.target.value)}
-                        placeholder="Followers - Q4 campaign"
-                      />
-                    </div>
-                  </div>
-                );
-              } else if (createMode === "posts") {
-                formContent = (
-                  <div className="stack">
-                    <div className="input-group">
-                      <label htmlFor="posts-name">Task name (optional)</label>
-                      <input
-                        id="posts-name"
-                        value={postsName}
-                        onChange={(event) => setPostsName(event.target.value)}
-                        placeholder="e.g., Capture webinar commenters"
-                      />
-                    </div>
-                    <div className="input-group">
-                      <label htmlFor="posts-input">LinkedIn post URLs</label>
-                      <textarea
-                        id="posts-input"
-                        rows={6}
-                        value={postsInput}
-                        onChange={(event) => setPostsInput(event.target.value)}
-                        placeholder="https://www.linkedin.com/posts/..."
-                      />
-                      <small className="muted">Separate each post by a new line or comma.</small>
-                    </div>
-                    <div className="input-group inline">
-                      <label>Collect</label>
-                      <label className="toggle-option">
-                        <input
-                          type="checkbox"
-                          checked={postsScrapeReactions}
-                          onChange={(event) => setPostsScrapeReactions(event.target.checked)}
-                        />
-                        <span>Reactions</span>
-                      </label>
-                      <label className="toggle-option">
-                        <input
-                          type="checkbox"
-                          checked={postsScrapeCommenters}
-                          onChange={(event) => setPostsScrapeCommenters(event.target.checked)}
-                        />
-                        <span>Comments</span>
-                      </label>
-                    </div>
-                    <div className="input-group">
-                      <label htmlFor="posts-leadlist">Target lead list (optional)</label>
-                      <input
-                        id="posts-leadlist"
-                        value={postsLeadList}
-                        onChange={(event) => setPostsLeadList(event.target.value)}
-                        placeholder="Engagement - November launch"
-                      />
-                    </div>
-                  </div>
-                );
-              } else if (createMode === "profiles") {
-                formContent = (
-                  <div className="stack">
-                    <div className="input-group">
-                      <label htmlFor="profiles-name">Task name (optional)</label>
-                      <input
-                        id="profiles-name"
-                        value={profilesName}
-                        onChange={(event) => setProfilesName(event.target.value)}
-                        placeholder="e.g., Investor outreach list"
-                      />
-                    </div>
-                    <div className="input-group">
-                      <label htmlFor="profiles-input">LinkedIn profile URLs</label>
-                      <textarea
-                        id="profiles-input"
-                        rows={6}
-                        value={profilesInput}
-                        onChange={(event) => setProfilesInput(event.target.value)}
-                        placeholder={`https://www.linkedin.com/in/example-one\nhttps://www.linkedin.com/in/example-two`}
-                      />
-                      <small className="muted">Separate each profile by a new line or comma.</small>
-                    </div>
-                    <div className="input-group">
-                      <label htmlFor="profiles-leadlist">Target lead list (optional)</label>
-                      <input
-                        id="profiles-leadlist"
-                        value={profilesLeadList}
-                        onChange={(event) => setProfilesLeadList(event.target.value)}
-                        placeholder="Profiles - Product Hunt launch"
-                      />
-                    </div>
-                  </div>
-                );
               }
 
               return (
