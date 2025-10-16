@@ -1,7 +1,70 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { LeadRecord } from "../types";
+import type { LeadExperience, LeadRecord, LeadRecordRaw } from "../types";
 import { apiClient } from "../api/client";
+
+const numberFormatter = new Intl.NumberFormat();
+
+const asRecord = (value: unknown): Record<string, unknown> | undefined => {
+  if (value && typeof value === "object") {
+    return value as Record<string, unknown>;
+  }
+  return undefined;
+};
+
+const readString = (record: Record<string, unknown> | undefined, key: string): string | undefined => {
+  if (!record) {
+    return undefined;
+  }
+  const value = record[key];
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : undefined;
+};
+
+const readNumber = (record: Record<string, unknown> | undefined, key: string): number | undefined => {
+  if (!record) {
+    return undefined;
+  }
+  const value = record[key];
+  return typeof value === "number" ? value : undefined;
+};
+
+const truncate = (value: string, limit = 120): string => {
+  if (value.length <= limit) {
+    return value;
+  }
+  return `${value.slice(0, limit).trim()}…`;
+};
+
+const collectAdditionalLocations = (
+  baseLocation: string | undefined,
+  profileRecord: Record<string, unknown> | undefined,
+  experiences?: LeadExperience[],
+  previousCompanies?: LeadExperience[]
+): string[] => {
+  const normalizedBase = baseLocation?.trim().toLowerCase() ?? "";
+  const locations = new Set<string>();
+  const addLocation = (value?: string) => {
+    if (!value) {
+      return;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return;
+    }
+    if (normalizedBase && trimmed.toLowerCase() === normalizedBase) {
+      return;
+    }
+    locations.add(trimmed);
+  };
+  addLocation(readString(profileRecord, "location"));
+  experiences?.forEach((experience) => addLocation(experience.location));
+  previousCompanies?.forEach((experience) => addLocation(experience.location));
+  return Array.from(locations);
+};
 
 export const LeadTable = () => {
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
@@ -171,13 +234,15 @@ export const LeadTable = () => {
                     onChange={(event) => selectAll(event.target.checked)}
                   />
                 </th>
-                <th>Name</th>
-                <th>Title</th>
+                <th>Profile</th>
+                <th>Company</th>
+                <th>Contact</th>
+                <th>Locations</th>
+                <th>Connections</th>
+                <th>Education</th>
+                <th>Experience</th>
                 <th>Automation</th>
                 <th>Source</th>
-                <th>Company</th>
-                <th>Email</th>
-                <th>Location</th>
                 <th>Captured</th>
                 <th />
               </tr>
@@ -194,32 +259,233 @@ export const LeadTable = () => {
                     />
                   </td>
                   <td>
-                    <strong>{lead.fullName}</strong>
+                    {(() => {
+                      const raw = (lead.raw ?? {}) as LeadRecordRaw;
+                      const profileRecord = asRecord(raw.profile);
+                      const profileImageUrl = raw.profileImageUrl ?? readString(profileRecord, "profileImageUrl");
+                      const headline = lead.headline ?? readString(profileRecord, "headline");
+                      const initials = lead.fullName
+                        .split(/\s+/)
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .map((part) => part.charAt(0).toUpperCase())
+                        .join("");
+                      return (
+                        <div className="lead-profile">
+                          {profileImageUrl ? (
+                            <img
+                              src={profileImageUrl}
+                              alt={lead.fullName}
+                              className="lead-profile__avatar"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="lead-profile__avatar lead-profile__avatar--placeholder">
+                              {initials || "?"}
+                            </div>
+                          )}
+                          <div className="lead-profile__details">
+                            <strong>{lead.fullName}</strong>
+                            {headline && <span className="muted">{headline}</span>}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </td>
-                  <td>{lead.title}</td>
+                  <td>
+                    {(() => {
+                      const raw = (lead.raw ?? {}) as LeadRecordRaw;
+                      const profileRecord = asRecord(raw.profile);
+                      const companyDomain = lead.inferredCompanyDomain;
+                      const currentStart = raw.currentCompanyStartedAt ?? readString(profileRecord, "currentCompanyStartedAt");
+                      return (
+                        <div className="lead-company">
+                          <div>{lead.companyName ?? lead.inferredCompanyName ?? "—"}</div>
+                          {lead.title && <div className="muted">{lead.title}</div>}
+                          {companyDomain && <small className="muted">{companyDomain}</small>}
+                          {lead.companyUrl && (
+                            <small className="muted">{lead.companyUrl}</small>
+                          )}
+                          {currentStart && <small className="muted">Since: {currentStart}</small>}
+                        </div>
+                      );
+                    })()}
+                  </td>
+                  <td>
+                    {(() => {
+                      const raw = (lead.raw ?? {}) as LeadRecordRaw;
+                      const phoneNumbers = raw.phoneNumbers ?? [];
+                      const birthday = raw.birthday;
+                      return (
+                        <div className="lead-contact">
+                          {lead.email ? (
+                            <div>
+                              <span>{lead.email}</span>
+                              <small className="muted">
+                                Status: {formatStatus(lead.emailVerificationStatus ?? "valid")}
+                              </small>
+                            </div>
+                          ) : (
+                            <div>
+                              <span className="muted">Email not available</span>
+                              <small className="muted">Status: {formatStatus(lead.emailVerificationStatus)}</small>
+                            </div>
+                          )}
+                          {phoneNumbers.length > 0 && (
+                            <div>
+                              <span className="lead-contact__label">Phone:</span>
+                              <span>{phoneNumbers.join(" | ")}</span>
+                            </div>
+                          )}
+                          {birthday && (
+                            <div>
+                              <span className="lead-contact__label">Birthday:</span>
+                              <span>{birthday}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </td>
+                  <td>
+                    {(() => {
+                      const raw = (lead.raw ?? {}) as LeadRecordRaw;
+                      const profileRecord = asRecord(raw.profile);
+                      const baseLocation = lead.location ?? readString(profileRecord, "location");
+                      const additionalLocations = collectAdditionalLocations(
+                        baseLocation,
+                        profileRecord,
+                        raw.experiences,
+                        raw.previousCompanies
+                      );
+                      return (
+                        <div className="lead-locations">
+                          <div>{baseLocation ?? "—"}</div>
+                          {additionalLocations.length > 0 && (
+                            <ul className="table-list">
+                              {additionalLocations.map((location) => (
+                                <li key={location}>
+                                  <small className="muted">{location}</small>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </td>
+                  <td>
+                    {(() => {
+                      const raw = (lead.raw ?? {}) as LeadRecordRaw;
+                      const profileRecord = asRecord(raw.profile);
+                      const connectionsText =
+                        lead.connectionsText ?? raw.connectionsText ?? readString(profileRecord, "connectionsText") ??
+                        readString(profileRecord, "connections");
+                      const connectionCount =
+                        lead.connectionCount ?? raw.connectionCount ?? readNumber(profileRecord, "connectionCount");
+                      const followersText =
+                        lead.followersText ?? raw.followersText ?? readString(profileRecord, "followersText") ??
+                        readString(profileRecord, "followers");
+                      const followerCount =
+                        lead.followerCount ?? raw.followerCount ?? readNumber(profileRecord, "followerCount");
+                      const connectionLabel = connectionsText
+                        ? connectionsText
+                        : typeof connectionCount === "number"
+                        ? `${numberFormatter.format(connectionCount)} connections`
+                        : "—";
+                      return (
+                        <div className="lead-connections">
+                          <div>{connectionLabel}</div>
+                          {lead.connectionDegree && (
+                            <small className="muted">Degree: {lead.connectionDegree}</small>
+                          )}
+                          {(followersText || typeof followerCount === "number") && (
+                            <small className="muted">
+                              {followersText ?? `${numberFormatter.format(followerCount ?? 0)} followers`}
+                            </small>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </td>
+                  <td>
+                    {(() => {
+                      const raw = (lead.raw ?? {}) as LeadRecordRaw;
+                      const education = (raw.education ?? [])
+                        .filter((entry) => Boolean(entry.school || entry.degree || entry.fieldOfStudy))
+                        .slice(0, 3);
+                      if (!education.length) {
+                        return <span className="muted">—</span>;
+                      }
+                      return (
+                        <ul className="table-list">
+                          {education.map((entry, index) => {
+                            const key = `${entry.school ?? "education"}-${index}`;
+                            const details = [entry.degree, entry.fieldOfStudy]
+                              .filter((value): value is string => Boolean(value))
+                              .join(" • ");
+                            return (
+                              <li key={key}>
+                                {entry.school && <div>{entry.school}</div>}
+                                {details && <small className="muted">{details}</small>}
+                                {entry.dateRangeText && <small className="muted">{entry.dateRangeText}</small>}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      );
+                    })()}
+                  </td>
+                  <td>
+                    {(() => {
+                      const raw = (lead.raw ?? {}) as LeadRecordRaw;
+                      const experiencesSource = raw.previousCompanies?.length
+                        ? raw.previousCompanies
+                        : raw.experiences;
+                      const experiences = (experiencesSource ?? [])
+                        .filter((experience) => Boolean(experience.title || experience.company))
+                        .slice(0, 3);
+                      if (!experiences.length) {
+                        return <span className="muted">—</span>;
+                      }
+                      return (
+                        <ul className="table-list">
+                          {experiences.map((experience, index) => {
+                            const key = `${experience.company ?? "experience"}-${index}`;
+                            const header = [experience.title, experience.company]
+                              .filter((value): value is string => Boolean(value))
+                              .join(" @ ");
+                            return (
+                              <li key={key}>
+                                {header && <div>{header}</div>}
+                                {experience.location && <small className="muted">{experience.location}</small>}
+                                {experience.dateRangeText && (
+                                  <small className="muted">{experience.dateRangeText}</small>
+                                )}
+                                {experience.description && (
+                                  <small className="muted">{truncate(experience.description)}</small>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      );
+                    })()}
+                  </td>
                   <td>{lead.taskName ?? "—"}</td>
                   <td>
-                    {lead.raw?.source && typeof lead.raw.source === "string"
-                      ? lead.raw.source.replace(/_/g, " ")
-                      : "—"}
+                    {(() => {
+                      const raw = (lead.raw ?? {}) as LeadRecordRaw;
+                      const source = typeof raw.source === "string" ? raw.source.replace(/_/g, " ") : undefined;
+                      const leadListName = raw.leadListName;
+                      return (
+                        <div className="lead-source">
+                          <div>{source ?? "—"}</div>
+                          {leadListName && <small className="muted">List: {leadListName}</small>}
+                        </div>
+                      );
+                    })()}
                   </td>
-                  <td>
-                    <div>{lead.companyName ?? lead.inferredCompanyName ?? "—"}</div>
-                    {lead.inferredCompanyDomain && (
-                      <small className="muted">{lead.inferredCompanyDomain}</small>
-                    )}
-                  </td>
-                  <td>
-                    {lead.email ? (
-                      <>
-                        <div>{lead.email}</div>
-                        <small className="muted">Status: {formatStatus(lead.emailVerificationStatus ?? "valid")}</small>
-                      </>
-                    ) : (
-                      <span className="muted">Status: {formatStatus(lead.emailVerificationStatus)}</span>
-                    )}
-                  </td>
-                  <td>{lead.location}</td>
                   <td>{new Date(lead.capturedAt).toLocaleString()}</td>
                   <td>
                     <a

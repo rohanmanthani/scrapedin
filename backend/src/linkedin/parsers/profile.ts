@@ -28,6 +28,10 @@ export interface ExtractedProfileDetails {
   currentCompanyStartedAt?: string;
   experiences?: ExtractedExperience[];
   education?: ExtractedEducation[];
+  connectionsText?: string;
+  connectionCount?: number;
+  followersText?: string;
+  followerCount?: number;
 }
 
 interface ProfileExtractionOptions {
@@ -227,6 +231,71 @@ const extractEducation = (root: ParentNode): ExtractedEducation[] => {
     .filter((education) => Boolean(education.school || education.degree || education.fieldOfStudy));
 };
 
+const parseCountFromSummary = (value?: string): number | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  const normalized = value.replace(/[+,]/g, "").trim().toLowerCase();
+  const match = normalized.match(/(\d+(?:\.\d+)?)(k|m|b)?/i);
+  if (!match) {
+    return undefined;
+  }
+  const base = Number.parseFloat(match[1]);
+  if (Number.isNaN(base)) {
+    return undefined;
+  }
+  const suffix = match[2]?.toLowerCase();
+  if (suffix === "k") {
+    return Math.round(base * 1_000);
+  }
+  if (suffix === "m") {
+    return Math.round(base * 1_000_000);
+  }
+  if (suffix === "b") {
+    return Math.round(base * 1_000_000_000);
+  }
+  return Math.round(base);
+};
+
+const collectConnectionSummaries = (roots: ParentNode[]): string[] => {
+  const selectors = [
+    "li[data-test-id='member-connections'] span",
+    "span[data-test-id='member-connections']",
+    "span[data-test-id='top-card__subline-item']",
+    "li[data-test-id='top-card__subline-item'] span",
+    "span[data-test-id='profile-topcard-secondary-item']",
+    ".pv-top-card--list-bullet li span[aria-hidden='true']",
+    ".pv-top-card-v2-section__connections span",
+    "span[data-field='topcard_summary']",
+    "span[data-field='topcard-summary-line']"
+  ];
+
+  const summaries = new Set<string>();
+  for (const root of roots) {
+    const scopedRoot = root as ParentNode & { querySelectorAll: typeof document.querySelectorAll };
+    selectors.forEach((selector) => {
+      scopedRoot.querySelectorAll(selector).forEach((element) => {
+        if (element instanceof Element) {
+          const text = cleanText(element.textContent);
+          if (text && /\b(connection|follower)s?\b/i.test(text)) {
+            summaries.add(text);
+          }
+        }
+      });
+    });
+    if (root instanceof Element) {
+      root.querySelectorAll("span").forEach((element) => {
+        const text = cleanText(element.textContent);
+        if (text && /\b(connection|follower)s?\b/i.test(text)) {
+          summaries.add(text);
+        }
+      });
+    }
+  }
+
+  return Array.from(summaries);
+};
+
 const collectPhoneNumbers = (roots: ParentNode[]): string[] => {
   const numbers = new Set<string>();
   const selectors = [
@@ -412,6 +481,11 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
     .find((value): value is string => Boolean(value));
 
   const currentCompanyStartedAt = deriveCurrentCompanyStartedAt(experiences);
+  const connectionSummaries = collectConnectionSummaries(contactRoots);
+  const connectionsText = connectionSummaries.find((summary) => /\bconnection/i.test(summary));
+  const followersText = connectionSummaries.find((summary) => /\bfollower/i.test(summary));
+  const connectionCount = parseCountFromSummary(connectionsText);
+  const followerCount = parseCountFromSummary(followersText);
 
   return {
     fullName: fullName ?? undefined,
@@ -425,6 +499,10 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
     birthday: birthday ?? undefined,
     currentCompanyStartedAt,
     experiences: experiences.length ? experiences : undefined,
-    education: education.length ? education : undefined
+    education: education.length ? education : undefined,
+    connectionsText: connectionsText ?? undefined,
+    connectionCount,
+    followersText: followersText ?? undefined,
+    followerCount
   };
 }

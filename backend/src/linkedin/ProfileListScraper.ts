@@ -102,6 +102,10 @@ export class ProfileListScraper extends BaseLinkedInClient {
       companyName: details.currentCompany ?? currentExperience?.company ?? undefined,
       location: details.location ?? currentExperience?.location,
       capturedAt,
+      connectionsText: details.connectionsText ?? undefined,
+      connectionCount: details.connectionCount,
+      followersText: details.followersText ?? undefined,
+      followerCount: details.followerCount,
       raw: {
         source: "profile_scrape",
         leadListName: input.leadListName,
@@ -111,7 +115,11 @@ export class ProfileListScraper extends BaseLinkedInClient {
         experiences: details.experiences,
         education: details.education,
         birthday: details.birthday,
-        phoneNumbers: details.phoneNumbers
+        phoneNumbers: details.phoneNumbers,
+        connectionsText: details.connectionsText,
+        connectionCount: details.connectionCount,
+        followersText: details.followersText,
+        followerCount: details.followerCount
       },
       email: details.email ?? undefined,
       taskName: input.taskName
