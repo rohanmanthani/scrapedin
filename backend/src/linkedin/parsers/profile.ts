@@ -14,7 +14,9 @@ const cleanText = (value: string | null | undefined): string | undefined => {
   if (!value) {
     return undefined;
   }
-  const normalized = value.replace(/\bView\s+[^\n]+?\s+profile\b/gi, " ");
+  const normalized = value
+    .replace(/View[\s\S]*?profile/gi, " ")
+    .replace(/\b[1-3](?:st|nd|rd|th)?\s+degree\s+connection\b.*$/i, " ");
   const condensed = normalized.replace(/\s+/g, " ").trim();
   if (!condensed) {
     return undefined;
@@ -94,7 +96,11 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
     "span.text-body-small.inline.t-black--light.break-words",
     ".pv-top-card__subline-item",
     ".top-card-layout__entity-info span[data-test-id='hero-location']",
-    "div[data-field='experience-location']"
+    "div[data-field='experience-location']",
+    "span[data-test-id='top-card-location']",
+    "div[data-test-id='member-location']",
+    ".pv-text-details__left-panel span.inline-flex",
+    ".pv-top-card--list-bullet span[aria-hidden='true']"
   ]);
   if (location && /connection|follower/i.test(location)) {
     location = undefined;
