@@ -1,7 +1,7 @@
 # LinkedIn Profile Selector Fixes
 
 ## Problem
-The LinkedIn scraper was failing with "Profile missing first name" errors because LinkedIn's DOM structure and CSS class names have changed since the selectors were originally written.
+The LinkedIn scraper was failing with "Profile missing first name" errors, and was incorrectly extracting company name and title fields. Company name was pointing to title, title was pointing to headline, and company URL was missing entirely.
 
 ## Changes Made
 
@@ -29,16 +29,26 @@ Added comprehensive selector fallbacks for extracting the profile name (`fullNam
 **Ultimate Fallback:**
 - Any `<h1>` element on the page (with length validation)
 
-### 2. Enhanced Other Field Selectors
+### 2. Fixed Company and Title Extraction
+
+**Rewrote the logic to properly distinguish between:**
+- `currentCompany` - Company name extracted from company links (`<a href="/company/...">`)
+- `currentCompanyUrl` - Full URL to the company's LinkedIn page (NEW field)
+- `currentTitle` - Current job position (NOT the headline, which is the descriptive text under the name)
+
+**Key changes:**
+- Company name and URL are now extracted together from company links to ensure they match
+- Title extraction explicitly excludes company names and headlines to prevent confusion
+- Added selectors that target the experience section structure rather than just matching class names
+
+### 3. Enhanced Other Field Selectors
 
 Applied the same multi-level fallback strategy to:
-- `headline` - Job title/headline under name
+- `headline` - Job title/headline under name (descriptive text, not job title)
 - `location` - Geographic location
-- `currentCompany` - Current employer
-- `currentTitle` - Current job title
 - `profileImageUrl` - Profile photo
 
-### 3. Improved Error Logging (`ProfileListScraper.ts`)
+### 4. Improved Error Logging (`ProfileListScraper.ts`)
 
 When a profile name cannot be found, the scraper now logs:
 - Page title
@@ -91,12 +101,17 @@ If you encounter "Profile missing first name" errors again:
    document.querySelector('h1')?.className
    ```
 
-3. **Add new selectors** to the `fullName` selector array in `profile.ts`:
+3. **Add new selectors** to the selector arrays in `profile.ts`:
    - Add them near the top for priority
    - Follow the pattern: most specific to most generic
    - Test with multiple LinkedIn profiles
 
-4. **Consider using data attributes**:
+4. **Check field extraction logic**:
+   - Verify that company name comes from company links, not text spans
+   - Ensure title comes from experience section, not headline
+   - Confirm fields aren't accidentally swapped
+
+5. **Consider using data attributes**:
    - LinkedIn sometimes uses `[data-test-id]` attributes
    - These are more stable than class names
 
@@ -114,8 +129,24 @@ If you encounter "Profile missing first name" errors again:
   - `backend/src/linkedin/ProfileListScraper.ts` - Profile scraping orchestration
   - `backend/src/linkedin/parsers/__tests__/profile.test.ts` - Test cases
 
+## Key Technical Details
+
+### Company and Title Extraction Strategy
+
+The new extraction logic:
+1. **Company Links First**: Searches for `<a href="/company/...">` elements to get both company name and URL
+2. **Title from Experience**: Extracts title from experience section, explicitly avoiding headline and company name
+3. **Validation**: Ensures extracted title ≠ company name and title ≠ headline to prevent misidentification
+
+This approach is more robust because:
+- Company links are semantic and less likely to change
+- Extracting name and URL together ensures consistency
+- Explicit validation prevents field confusion
+
 ## Related Files Modified
 
-- `backend/src/linkedin/parsers/profile.ts` - Main selector updates
-- `backend/src/linkedin/ProfileListScraper.ts` - Enhanced error logging
-- `backend/src/linkedin/parsers/__tests__/profile.test.ts` - New test cases
+- `backend/src/linkedin/parsers/profile.ts` - Main selector updates, company/title extraction rewrite
+- `backend/src/linkedin/ProfileListScraper.ts` - Enhanced error logging, added companyUrl field
+- `backend/src/linkedin/PostEngagementScraper.ts` - Added companyUrl support
+- `backend/src/linkedin/parsers/postEngagement.ts` - Added companyUrl to interface
+- `backend/src/linkedin/parsers/__tests__/profile.test.ts` - New test cases including company URL validation

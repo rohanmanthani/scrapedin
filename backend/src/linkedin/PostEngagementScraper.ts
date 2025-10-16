@@ -77,7 +77,10 @@ export class PostEngagementScraper extends BaseLinkedInClient {
 
   async scrape(input: PostEngagementInput): Promise<LeadRecord[]> {
     const context = await this.getContext();
-    const limit = input.maxProfiles && input.maxProfiles > 0 ? input.maxProfiles : this.settings.resultsPerPage ?? 25;
+    const limit =
+      input.maxProfiles && input.maxProfiles > 0
+        ? input.maxProfiles
+        : (this.settings.resultsPerPage ?? 25);
     const aggregated: LeadRecord[] = [];
     const dedupe = new Set<string>();
 
@@ -207,8 +210,10 @@ export class PostEngagementScraper extends BaseLinkedInClient {
         fullName: details.fullName ?? profile.fullName,
         headline: details.headline ?? profile.headline,
         location: details.location ?? profile.location,
-        currentTitle: details.currentTitle ?? profile.currentTitle ?? details.headline ?? profile.headline,
+        currentTitle:
+          details.currentTitle ?? profile.currentTitle ?? details.headline ?? profile.headline,
         currentCompany: details.currentCompany ?? profile.currentCompany,
+        currentCompanyUrl: details.currentCompanyUrl ?? profile.currentCompanyUrl,
         profileImageUrl: details.profileImageUrl ?? profile.profileImageUrl,
         email: details.email ?? profile.email
       });
@@ -230,7 +235,9 @@ export class PostEngagementScraper extends BaseLinkedInClient {
       });
       await this.randomDelay();
       try {
-        await page.waitForSelector("main", { timeout: Math.min(this.settings.pageTimeoutMs, 8000) });
+        await page.waitForSelector("main", {
+          timeout: Math.min(this.settings.pageTimeoutMs, 8000)
+        });
       } catch {
         // Ignore if the main selector does not appear quickly; we'll attempt extraction anyway.
       }
@@ -296,7 +303,10 @@ export class PostEngagementScraper extends BaseLinkedInClient {
       }
     }
 
-    await this.waitForSelectorGroup(page, [...REACTION_TRIGGER_SELECTORS, ...REACTION_FALLBACK_SELECTORS]);
+    await this.waitForSelectorGroup(page, [
+      ...REACTION_TRIGGER_SELECTORS,
+      ...REACTION_FALLBACK_SELECTORS
+    ]);
     const modalSelectors = [
       ...REACTION_TRIGGER_SELECTORS,
       ...REACTION_FALLBACK_SELECTORS,
@@ -320,11 +330,15 @@ export class PostEngagementScraper extends BaseLinkedInClient {
       clicked = await this.clickIfExists(page, modalSelectors);
     }
     if (!clicked) {
-      logger.warn({ postUrl }, "Unable to open reactions modal; trigger not found after fallback scroll");
+      logger.warn(
+        { postUrl },
+        "Unable to open reactions modal; trigger not found after fallback scroll"
+      );
       return [];
     }
 
-    const modalSelector = "div.social-details-reactors-modal, div.reactions-modal, div.artdeco-modal";
+    const modalSelector =
+      "div.social-details-reactors-modal, div.reactions-modal, div.artdeco-modal";
     try {
       await page.waitForSelector(modalSelector, { timeout: this.settings.pageTimeoutMs });
     } catch {
@@ -364,7 +378,10 @@ export class PostEngagementScraper extends BaseLinkedInClient {
         limit,
         origin: url
       });
-      logger.info({ url, reactors: extracted.length }, "Collected post reactors from dedicated page");
+      logger.info(
+        { url, reactors: extracted.length },
+        "Collected post reactors from dedicated page"
+      );
       return extracted;
     } catch (error) {
       logger.error({ err: error, url }, "Failed to scrape reactors page");
@@ -374,7 +391,11 @@ export class PostEngagementScraper extends BaseLinkedInClient {
     }
   }
 
-  private async collectCommenters(page: Page, postUrl: string, limit: number): Promise<CommentProfiles> {
+  private async collectCommenters(
+    page: Page,
+    postUrl: string,
+    limit: number
+  ): Promise<CommentProfiles> {
     await this.expandComments(page, limit);
     await this.waitForRows(page, COMMENT_ROW_SELECTOR);
     return await page.evaluate(extractComments, {
@@ -405,7 +426,11 @@ export class PostEngagementScraper extends BaseLinkedInClient {
     await this.expandAll(page, COMMENT_SEE_MORE_SELECTORS);
   }
 
-  private async scrollWithinContainer(page: Page, selectors: string[], limit: number): Promise<void> {
+  private async scrollWithinContainer(
+    page: Page,
+    selectors: string[],
+    limit: number
+  ): Promise<void> {
     for (let attempt = 0; attempt < 10; attempt += 1) {
       const scrolled = await page.evaluate(
         ({ selectors: sel, limit: target }) => {
@@ -514,8 +539,9 @@ export class PostEngagementScraper extends BaseLinkedInClient {
   ): LeadRecord[] {
     const timestamp = new Date().toISOString();
     return profiles
-      .filter((profile): profile is ExtractedEngagementProfile & { fullName: string } =>
-        Boolean(profile.profileUrl) && this.hasFullName(profile)
+      .filter(
+        (profile): profile is ExtractedEngagementProfile & { fullName: string } =>
+          Boolean(profile.profileUrl) && this.hasFullName(profile)
       )
       .map((profile) => {
         const id = `${input.taskId}:${profile.profileUrl}`;
@@ -527,6 +553,7 @@ export class PostEngagementScraper extends BaseLinkedInClient {
           title: profile.currentTitle ?? profile.headline,
           headline: profile.headline,
           companyName: profile.currentCompany,
+          companyUrl: profile.currentCompanyUrl,
           location: profile.location,
           email: profile.email,
           capturedAt: timestamp,
@@ -550,8 +577,9 @@ export class PostEngagementScraper extends BaseLinkedInClient {
   ): LeadRecord[] {
     const timestamp = new Date().toISOString();
     return profiles
-      .filter((profile): profile is ExtractedEngagementProfile & { fullName: string } =>
-        Boolean(profile.profileUrl) && this.hasFullName(profile)
+      .filter(
+        (profile): profile is ExtractedEngagementProfile & { fullName: string } =>
+          Boolean(profile.profileUrl) && this.hasFullName(profile)
       )
       .map((profile) => {
         const id = `${input.taskId}:${profile.profileUrl}:comment`;
@@ -563,6 +591,7 @@ export class PostEngagementScraper extends BaseLinkedInClient {
           title: profile.currentTitle ?? profile.headline,
           headline: profile.headline,
           companyName: profile.currentCompany,
+          companyUrl: profile.currentCompanyUrl,
           location: profile.location,
           email: profile.email,
           capturedAt: timestamp,

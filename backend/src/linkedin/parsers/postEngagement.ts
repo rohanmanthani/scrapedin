@@ -5,6 +5,7 @@ export interface ExtractedEngagementProfile {
   location?: string;
   currentTitle?: string;
   currentCompany?: string;
+  currentCompanyUrl?: string;
   profileImageUrl?: string;
   email?: string;
   reactionLabel?: string;
@@ -17,7 +18,9 @@ export interface EngagementExtractionOptions {
   root?: ParentNode | null;
 }
 
-export function extractReactors(options?: EngagementExtractionOptions): ExtractedEngagementProfile[] {
+export function extractReactors(
+  options?: EngagementExtractionOptions
+): ExtractedEngagementProfile[] {
   const sanitizeFullName = (raw: string): string => {
     if (!raw) {
       return raw;
@@ -95,13 +98,11 @@ export function extractReactors(options?: EngagementExtractionOptions): Extracte
   const getCandidates = function (root: ParentNode, selectors: string[]): Element[] {
     const results: Element[] = [];
     for (const selector of selectors) {
-      root
-        .querySelectorAll(selector)
-        .forEach((node) => {
-          if (node instanceof Element) {
-            results.push(node);
-          }
-        });
+      root.querySelectorAll(selector).forEach((node) => {
+        if (node instanceof Element) {
+          results.push(node);
+        }
+      });
     }
     return results;
   };
@@ -163,9 +164,7 @@ export function extractReactors(options?: EngagementExtractionOptions): Extracte
     }
 
     const extractedName = extractFirstText(candidate, NAME_SELECTORS);
-    const name = sanitizeFullName(
-      extractedName ?? anchor.textContent?.trim() ?? ""
-    );
+    const name = sanitizeFullName(extractedName ?? anchor.textContent?.trim() ?? "");
 
     if (!name) {
       seen.add(profileUrl);
@@ -175,7 +174,9 @@ export function extractReactors(options?: EngagementExtractionOptions): Extracte
         location = undefined;
       }
       const reactionLabel =
-        candidate.querySelector("[data-test-reaction-icon]")?.getAttribute("data-test-reaction-icon") ??
+        candidate
+          .querySelector("[data-test-reaction-icon]")
+          ?.getAttribute("data-test-reaction-icon") ??
         candidate.querySelector(".reactor-entry__reaction-type")?.textContent?.trim() ??
         extractFirstText(candidate, [".reactions-tab__member-reaction-type"]);
 
@@ -200,7 +201,9 @@ export function extractReactors(options?: EngagementExtractionOptions): Extracte
       location = undefined;
     }
     const reactionLabel =
-      candidate.querySelector("[data-test-reaction-icon]")?.getAttribute("data-test-reaction-icon") ??
+      candidate
+        .querySelector("[data-test-reaction-icon]")
+        ?.getAttribute("data-test-reaction-icon") ??
       candidate.querySelector(".reactor-entry__reaction-type")?.textContent?.trim() ??
       extractFirstText(candidate, [".reactions-tab__member-reaction-type"]);
 
@@ -220,7 +223,9 @@ export function extractReactors(options?: EngagementExtractionOptions): Extracte
   return results;
 }
 
-export function extractComments(options?: EngagementExtractionOptions): ExtractedEngagementProfile[] {
+export function extractComments(
+  options?: EngagementExtractionOptions
+): ExtractedEngagementProfile[] {
   const sanitizeFullName = (raw: string): string => {
     if (!raw) {
       return raw;
@@ -287,13 +292,11 @@ export function extractComments(options?: EngagementExtractionOptions): Extracte
   const getCandidates = (root: ParentNode, selectors: string[]): Element[] => {
     const results: Element[] = [];
     for (const selector of selectors) {
-      root
-        .querySelectorAll(selector)
-        .forEach((node) => {
-          if (node instanceof Element) {
-            results.push(node);
-          }
-        });
+      root.querySelectorAll(selector).forEach((node) => {
+        if (node instanceof Element) {
+          results.push(node);
+        }
+      });
     }
     return results;
   };
@@ -355,9 +358,7 @@ export function extractComments(options?: EngagementExtractionOptions): Extracte
     }
 
     const name = sanitizeFullName(
-      extractFirstText(candidate, COMMENT_NAME_SELECTORS) ??
-        anchor.textContent?.trim() ??
-        ""
+      extractFirstText(candidate, COMMENT_NAME_SELECTORS) ?? anchor.textContent?.trim() ?? ""
     );
     if (!name) {
       continue;

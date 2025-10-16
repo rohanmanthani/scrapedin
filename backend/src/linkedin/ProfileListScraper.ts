@@ -122,6 +122,7 @@ export class ProfileListScraper extends BaseLinkedInClient {
       headline: details.headline ?? undefined,
       title: details.currentTitle ?? currentExperience?.title ?? undefined,
       companyName: details.currentCompany ?? currentExperience?.company ?? undefined,
+      companyUrl: details.currentCompanyUrl ?? undefined,
       location: details.location ?? currentExperience?.location,
       capturedAt,
       connectionsText: details.connectionsText ?? undefined,

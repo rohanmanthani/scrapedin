@@ -126,6 +126,10 @@ test("extractProfileDetails works with modern LinkedIn profile structure (2024)"
         <img class="pv-top-card-profile-picture__image--show" src="https://cdn.example.com/sarah.jpg" />
       </section>
       <section>
+        <div class="inline-show-more-text">
+          <span aria-hidden="true">Product Manager</span>
+          at <a href="/company/tech-corp/">Tech Corp</a>
+        </div>
         <ul>
           <li>
             <div>
@@ -146,6 +150,9 @@ test("extractProfileDetails works with modern LinkedIn profile structure (2024)"
   assert.equal(details.headline, "Senior Product Manager at Tech Corp");
   assert.equal(details.location, "San Francisco Bay Area");
   assert.equal(details.profileImageUrl, "https://cdn.example.com/sarah.jpg");
+  assert.equal(details.currentCompany, "Tech Corp");
+  assert.equal(details.currentCompanyUrl, "https://www.linkedin.com/company/tech-corp/");
+  assert.equal(details.currentTitle, "Product Manager");
 });
 
 test("extractProfileDetails falls back to any h1 when specific selectors fail", () => {
