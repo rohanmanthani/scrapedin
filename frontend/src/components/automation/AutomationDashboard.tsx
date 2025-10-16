@@ -1119,10 +1119,45 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                             event.stopPropagation();
                           }}
                         >
+                          {isStartableTask ? (
+                            task.status === "draft" ? (
+                              <button
+                                type="button"
+                                className="button"
+                                onClick={() => startTask.mutate(task.id)}
+                                disabled={startInFlight === task.id && startTask.isLoading}
+                              >
+                                {startInFlight === task.id && startTask.isLoading ? "Starting..." : "Start"}
+                              </button>
+                            ) : task.status === "pending" || task.status === "queued" || task.status === "running" ? (
+                              <button
+                                type="button"
+                                className="button button--secondary"
+                                onClick={() => pauseTask.mutate(task.id)}
+                                disabled={pauseTask.isLoading}
+                              >
+                                Pause
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="button button--secondary"
+                                onClick={() => startTask.mutate(task.id)}
+                                disabled={startInFlight === task.id && startTask.isLoading}
+                              >
+                                {startInFlight === task.id && startTask.isLoading ? "Starting..." : "Re-run"}
+                              </button>
+                            )
+                          ) : (
+                            <button type="button" className="button button--secondary" disabled>
+                              Review Only
+                            </button>
+                          )}
                           <div className="overflow-wrapper">
                             <button
                               type="button"
-                              className="button button--ghost"
+                              className="table-actions__menu-button"
+                              aria-label="Task actions"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 if (menuTaskId === task.id) {
@@ -1191,40 +1226,6 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                                 )
                               : null}
                           </div>
-                          {isStartableTask ? (
-                            task.status === "draft" ? (
-                              <button
-                                type="button"
-                                className="button"
-                                onClick={() => startTask.mutate(task.id)}
-                                disabled={startInFlight === task.id && startTask.isLoading}
-                              >
-                                {startInFlight === task.id && startTask.isLoading ? "Starting..." : "Start"}
-                              </button>
-                            ) : task.status === "pending" || task.status === "queued" || task.status === "running" ? (
-                              <button
-                                type="button"
-                                className="button button--secondary"
-                                onClick={() => pauseTask.mutate(task.id)}
-                                disabled={pauseTask.isLoading}
-                              >
-                                Pause
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                className="button button--secondary"
-                                onClick={() => startTask.mutate(task.id)}
-                                disabled={startInFlight === task.id && startTask.isLoading}
-                              >
-                                {startInFlight === task.id && startTask.isLoading ? "Starting..." : "Re-run"}
-                              </button>
-                            )
-                          ) : (
-                            <button type="button" className="button button--secondary" disabled>
-                              Review Only
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>
