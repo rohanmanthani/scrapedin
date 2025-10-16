@@ -58,7 +58,9 @@ export class LinkedInNavigatorClient extends BaseLinkedInClient {
           });
         }
 
-        const nextButton = await page.$("button[aria-label='Next'], button.artdeco-pagination__button--next");
+        const nextButton = await page.$(
+          "button[aria-label='Next'], button.artdeco-pagination__button--next"
+        );
         if (!nextButton) {
           break;
         }
@@ -116,7 +118,12 @@ export class LinkedInNavigatorClient extends BaseLinkedInClient {
       personas: personas.length
     };
 
-    const appendRange = (params: URLSearchParams, range: { min?: number; max?: number }, lowKey: string, highKey: string) => {
+    const appendRange = (
+      params: URLSearchParams,
+      range: { min?: number; max?: number },
+      lowKey: string,
+      highKey: string
+    ) => {
       if (range.min !== undefined) {
         params.append(lowKey, String(range.min));
       }
@@ -192,9 +199,24 @@ export class LinkedInNavigatorClient extends BaseLinkedInClient {
       }
       appendRange(params, preset.filters.companyHeadcount, "companySizeLow", "companySizeHigh");
       appendRange(params, preset.filters.companyRevenue, "companyRevenueLow", "companyRevenueHigh");
-      appendRange(params, preset.filters.yearsInCurrentCompany, "yearsAtCompanyLow", "yearsAtCompanyHigh");
-      appendRange(params, preset.filters.yearsInCurrentPosition, "yearsInPositionLow", "yearsInPositionHigh");
-      appendRange(params, preset.filters.yearsOfExperience, "yearsExperienceLow", "yearsExperienceHigh");
+      appendRange(
+        params,
+        preset.filters.yearsInCurrentCompany,
+        "yearsAtCompanyLow",
+        "yearsAtCompanyHigh"
+      );
+      appendRange(
+        params,
+        preset.filters.yearsInCurrentPosition,
+        "yearsInPositionLow",
+        "yearsInPositionHigh"
+      );
+      appendRange(
+        params,
+        preset.filters.yearsOfExperience,
+        "yearsExperienceLow",
+        "yearsExperienceHigh"
+      );
       if (preset.filters.relationship) {
         params.append("relationship", preset.filters.relationship);
       }
@@ -320,7 +342,10 @@ export class LinkedInNavigatorClient extends BaseLinkedInClient {
     const attempts = Math.max((this.settings.retryAttempts ?? 0) + 1, 1);
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       try {
-        await page.goto(url, { waitUntil: "domcontentloaded", timeout: this.settings.pageTimeoutMs });
+        await page.goto(url, {
+          waitUntil: "domcontentloaded",
+          timeout: this.settings.pageTimeoutMs
+        });
         await this.ensureAuthorized(page);
         return;
       } catch (error) {
@@ -341,9 +366,18 @@ export class LinkedInNavigatorClient extends BaseLinkedInClient {
 
   private async ensureAuthorized(page: Page): Promise<void> {
     const currentUrl = page.url();
-    if (currentUrl.includes("checkpoint") || currentUrl.includes("authwall") || currentUrl.includes("login")) {
+    if (
+      currentUrl.includes("checkpoint") ||
+      currentUrl.includes("authwall") ||
+      currentUrl.includes("login")
+    ) {
       throw new Error(
         "LinkedIn redirected to an authentication wall. Update your session cookie or run with a logged-in Chrome profile."
+      );
+    }
+    if (currentUrl.includes("contract-chooser")) {
+      throw new Error(
+        "LinkedIn redirected to Sales Navigator contract chooser. You may not have an active Sales Navigator subscription or need to select a contract. Please log into LinkedIn Sales Navigator manually and ensure you have access."
       );
     }
     const loginForm = await page.$("form.login__form, form#login");
@@ -360,51 +394,54 @@ export class LinkedInNavigatorClient extends BaseLinkedInClient {
       timeout: this.settings.pageTimeoutMs
     });
 
-    const leads = await page.$$eval("li.search-results__result-item, li[data-x-search-result]", (items) =>
-      items.map((item) => {
-        const fullName =
-          item.querySelector<HTMLElement>("a[data-anonymize='person-name'], span[data-anonymize='person-name']")
-            ?.innerText ?? "";
-        const title =
-          item.querySelector<HTMLElement>("div[data-anonymize='headline'], span[data-anonymize='headline']")
-            ?.innerText ?? undefined;
-        const companyName =
-          item.querySelector<HTMLElement>("a[data-anonymize='company-name']")
-            ?.innerText ?? undefined;
-        const location =
-          item.querySelector<HTMLElement>("span[data-anonymize='location']")
-            ?.innerText ?? undefined;
-        const profileUrl =
-          item.querySelector<HTMLAnchorElement>("a[data-control-name='view_lead_panel_v2']")
-            ?.href ?? undefined;
-        const salesNavigatorUrl =
-          item.querySelector<HTMLAnchorElement>("a[data-control-name='view_lead_panel_v2']")
-            ?.href ?? undefined;
-        const headline =
-          item.querySelector<HTMLElement>("div[data-anonymize='headline']")
-            ?.innerText ?? undefined;
-        const connectionDegree =
-          item.querySelector<HTMLElement>("span[data-test-connection-status]")
-            ?.innerText ?? undefined;
+    const leads = await page.$$eval(
+      "li.search-results__result-item, li[data-x-search-result]",
+      (items) =>
+        items.map((item) => {
+          const fullName =
+            item.querySelector<HTMLElement>(
+              "a[data-anonymize='person-name'], span[data-anonymize='person-name']"
+            )?.innerText ?? "";
+          const title =
+            item.querySelector<HTMLElement>(
+              "div[data-anonymize='headline'], span[data-anonymize='headline']"
+            )?.innerText ?? undefined;
+          const companyName =
+            item.querySelector<HTMLElement>("a[data-anonymize='company-name']")?.innerText ??
+            undefined;
+          const location =
+            item.querySelector<HTMLElement>("span[data-anonymize='location']")?.innerText ??
+            undefined;
+          const profileUrl =
+            item.querySelector<HTMLAnchorElement>("a[data-control-name='view_lead_panel_v2']")
+              ?.href ?? undefined;
+          const salesNavigatorUrl =
+            item.querySelector<HTMLAnchorElement>("a[data-control-name='view_lead_panel_v2']")
+              ?.href ?? undefined;
+          const headline =
+            item.querySelector<HTMLElement>("div[data-anonymize='headline']")?.innerText ??
+            undefined;
+          const connectionDegree =
+            item.querySelector<HTMLElement>("span[data-test-connection-status]")?.innerText ??
+            undefined;
 
-        return {
-          fullName,
-          title,
-          companyName,
-          location,
-          profileUrl,
-          salesNavigatorUrl,
-          headline,
-          connectionDegree,
-          raw: {
-            source: "sales_navigator",
-            textContent: item.textContent
-          }
-        };
-      })
+          return {
+            fullName,
+            title,
+            companyName,
+            location,
+            profileUrl,
+            salesNavigatorUrl,
+            headline,
+            connectionDegree,
+            raw: {
+              source: "sales_navigator",
+              textContent: item.textContent
+            }
+          };
+        })
     );
 
     return leads.filter((lead) => lead.fullName);
   }
-
 }
