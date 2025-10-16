@@ -71,18 +71,6 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
     refetchInterval: 15_000
   });
 
-  const toggleAutomation = useMutation({
-    mutationFn: async (enabled: boolean) => {
-      if (!settings) return;
-      const next: AutomationSettings = { ...settings, enabled };
-      const { data } = await apiClient.put<AutomationSettings>("/settings", next);
-      return data;
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["settings"] });
-    }
-  });
-
   const [menuTaskId, setMenuTaskId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
   const [startInFlight, setStartInFlight] = useState<string | null>(null);
@@ -989,6 +977,11 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
     ]
   );
 
+  const isAutomationEnabled = settings?.enabled ?? false;
+  const automationStatusClass = `automation-status__light ${
+    isAutomationEnabled ? "automation-status__light--active" : "automation-status__light--paused"
+  }`;
+
   const isCreateLoading =
     createMode === "icp"
       ? createIcpMutation.isLoading
@@ -1002,20 +995,13 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
     <div className="stack">
       <section className="panel">
         <h2>Automation Status</h2>
-        <p>Enable or pause the background runner. New jobs auto-queue automatically whenever automation is armed.</p>
-        <div className="automation-toggle">
+        <p>Manage automation guardrails and start or pause the runner from Settings.</p>
+        <div className="automation-status">
+          <span className={automationStatusClass} aria-hidden="true" />
           <div>
-            <strong>{settings?.enabled ? "Automation is armed" : "Automation is paused"}</strong>
-            <p className="muted">Quiet hours, delays, and concurrency live under Settings.</p>
+            <strong>{isAutomationEnabled ? "Automation is armed" : "Automation is paused"}</strong>
+            <p className="muted">New jobs queue automatically whenever automation is armed.</p>
           </div>
-          <button
-            type="button"
-            className="button"
-            onClick={() => toggleAutomation.mutate(!settings?.enabled)}
-            disabled={toggleAutomation.isLoading || !settings}
-          >
-            {toggleAutomation.isLoading ? "Updating..." : settings?.enabled ? "Pause Automation" : "Enable Automation"}
-          </button>
         </div>
       </section>
 

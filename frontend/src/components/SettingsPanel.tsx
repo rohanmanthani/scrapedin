@@ -28,6 +28,29 @@ export const SettingsPanel = () => {
     }
   });
 
+  const toggleAutomation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      if (!settings) {
+        return;
+      }
+      const next: AutomationSettings = { ...settings, enabled };
+      const { data } = await apiClient.put<AutomationSettings>("/settings", next);
+      return data;
+    },
+    onSuccess: (data) => {
+      if (!data) {
+        return;
+      }
+      setDraft((prev) => {
+        if (prev) {
+          return { ...prev, enabled: data.enabled };
+        }
+        return data;
+      });
+      void queryClient.invalidateQueries({ queryKey: ["settings"] });
+    }
+  });
+
   const workingSettings = draft ?? settings;
 
   const updateField = <K extends keyof AutomationSettings>(key: K, value: AutomationSettings[K]) => {
@@ -80,6 +103,11 @@ export const SettingsPanel = () => {
   }
 
   const selectedModes = workingSettings.automationModes ?? [];
+
+  const isAutomationEnabled = workingSettings.enabled;
+  const automationStatusClass = `automation-status__light ${
+    isAutomationEnabled ? "automation-status__light--active" : "automation-status__light--paused"
+  }`;
 
   const toggleMode = (modeId: AutomationModeId) => {
     const next = selectedModes.includes(modeId)
@@ -181,17 +209,27 @@ export const SettingsPanel = () => {
         </section>
 
         <section className="settings-section">
-          <h3>Automation Toggle</h3>
-          <div className="input-group inline">
-            <label>
-              <input
-                type="checkbox"
-                checked={workingSettings.enabled}
-                onChange={(event) => updateField("enabled", event.target.checked)}
-              />{" "}
-              Enable background automation
-            </label>
-            <span className="muted">When enabled, queued searches run automatically with your guardrails.</span>
+          <h3>Automation Status</h3>
+          <div className="automation-toggle">
+            <div className="automation-status">
+              <span className={automationStatusClass} aria-hidden="true" />
+              <div>
+                <strong>{isAutomationEnabled ? "Automation is armed" : "Automation is paused"}</strong>
+                <p className="muted">When enabled, queued searches run automatically with your guardrails.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="button"
+              onClick={() => toggleAutomation.mutate(!isAutomationEnabled)}
+              disabled={toggleAutomation.isLoading || !settings}
+            >
+              {toggleAutomation.isLoading
+                ? "Updating..."
+                : isAutomationEnabled
+                ? "Pause Automation"
+                : "Enable Automation"}
+            </button>
           </div>
         </section>
 
