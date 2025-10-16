@@ -1,0 +1,30 @@
+{
+  "name": "linkedin-scraper",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local web application for managing LinkedIn Sales Navigator workflows, ICP refinement, and lead collection.",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm-run-all -p dev:backend dev:frontend",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build": "npm-run-all build:backend build:frontend",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "format": "npm-run-all format:backend format:frontend",
+    "format:backend": "npm --prefix backend run format",
+    "format:frontend": "npm --prefix frontend run format",
+    "lint": "npm-run-all lint:backend lint:frontend",
+    "lint:backend": "npm --prefix backend run lint",
+    "lint:frontend": "npm --prefix frontend run lint",
+    "clean": "rimraf node_modules backend/node_modules frontend/node_modules dist build"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5",
+    "rimraf": "^5.0.7"
+  }
+}
+

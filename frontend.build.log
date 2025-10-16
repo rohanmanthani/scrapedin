@@ -1,0 +1,12 @@
+
+> linkedin-scraper-frontend@0.1.0 build
+> tsc --noEmit && vite build
+
+src/App.tsx(101,21): error TS2304: Cannot find name 'favicon'.
+src/components/automation/AutomationDashboard.tsx(11,3): error TS2353: Object literal may only specify known properties, and 'draft' does not exist in type 'Record<TaskStatus, string>'.
+src/components/automation/AutomationDashboard.tsx(186,37): error TS2339: Property 'name' does not exist on type 'TaskWithPreset'.
+src/components/automation/AutomationDashboard.tsx(207,82): error TS2339: Property 'name' does not exist on type 'TaskWithPreset'.
+src/components/automation/AutomationDashboard.tsx(256,26): error TS2367: This comparison appears to be unintentional because the types 'TaskStatus' and '"draft"' have no overlap.
+src/components/IcpEditor.tsx(91,7): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+src/components/LeadTable.tsx(105,29): error TS2339: Property 'taskName' does not exist on type 'LeadRecord'.
+src/components/SettingsPanel.tsx(50,14): error TS2339: Property 'mode' does not exist on type '{ sessionCookie: string; }'.

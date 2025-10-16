@@ -1,0 +1,297 @@
+export interface ExtractedEngagementProfile {
+  fullName: string;
+  profileUrl: string;
+  headline?: string;
+  location?: string;
+  reactionLabel?: string;
+  commentText?: string;
+}
+
+export interface EngagementExtractionOptions {
+  limit?: number;
+  origin?: string;
+  root?: ParentNode | null;
+}
+
+export function extractReactors(options?: EngagementExtractionOptions): ExtractedEngagementProfile[] {
+  const REACTOR_SELECTORS = [
+    "li.reactor-entry",
+    "li.social-details-reactors-tab__list-item",
+    "li[data-test-reaction-row='true']",
+    "li.artdeco-list__item",
+    "li[data-id='reactor']"
+  ];
+
+  const HEADLINE_SELECTORS = [
+    ".comments-post-meta__headline",
+    ".comments-comment-item__headline",
+    ".feed-shared-comment__headline",
+    ".reactor-entry__member-headline",
+    ".artdeco-entity-lockup__subtitle",
+    ".reactions-tab__member-headline"
+  ];
+
+  const LOCATION_SELECTORS = [
+    ".comments-comment-item__secondary-content",
+    ".reactor-entry__member-secondary-title",
+    ".artdeco-entity-lockup__caption",
+    ".reactions-tab__member-secondary-title"
+  ];
+
+  const ANCHOR_SELECTORS = [
+    "a[href*='/in/']",
+    "a.comments-comment-item__profile-link",
+    "a.artdeco-entity-lockup__subtitle",
+    "a.feed-shared-actor__container-link"
+  ];
+
+  const getCandidates = function (root: ParentNode, selectors: string[]): Element[] {
+    const results: Element[] = [];
+    for (const selector of selectors) {
+      root
+        .querySelectorAll(selector)
+        .forEach((node) => {
+          if (node instanceof Element) {
+            results.push(node);
+          }
+        });
+    }
+    return results;
+  };
+
+  const findAnchor = function (element: Element): HTMLAnchorElement | null {
+    for (const selector of ANCHOR_SELECTORS) {
+      const anchor = element.querySelector?.(selector) as HTMLAnchorElement | null;
+      if (anchor) {
+        return anchor;
+      }
+    }
+    return null;
+  };
+
+  const normalizeUrl = function (raw: string, origin: string): string | undefined {
+    if (!raw) {
+      return undefined;
+    }
+    try {
+      const url = new URL(raw, origin);
+      return url.toString();
+    } catch {
+      return undefined;
+    }
+  };
+
+  const extractFirstText = function (element: Element, selectors: string[]): string | undefined {
+    for (const selector of selectors) {
+      const candidate = element.querySelector(selector);
+      const value = candidate?.textContent?.trim();
+      if (value) {
+        return value;
+      }
+    }
+    return undefined;
+  };
+
+  const root = (options?.root ?? document) as ParentNode & {
+    querySelectorAll: typeof document.querySelectorAll;
+    querySelector: typeof document.querySelector;
+  };
+  const origin =
+    options?.origin ??
+    (typeof location !== "undefined" ? location.href : "https://www.linkedin.com/");
+  const limit = options?.limit;
+
+  const candidates = getCandidates(root, REACTOR_SELECTORS);
+  const results: ExtractedEngagementProfile[] = [];
+  const seen = new Set<string>();
+
+  for (const candidate of candidates) {
+    const anchor = findAnchor(candidate);
+    if (!anchor) {
+      continue;
+    }
+    const profileUrl = normalizeUrl(anchor.getAttribute("href") ?? "", origin);
+    if (!profileUrl || seen.has(profileUrl)) {
+      continue;
+    }
+
+    const name =
+      anchor.textContent?.trim() ??
+      candidate.querySelector(".reactor-entry__member-name")?.textContent?.trim() ??
+      "";
+    if (!name) {
+      continue;
+    }
+
+    seen.add(profileUrl);
+
+    const headline = extractFirstText(candidate, HEADLINE_SELECTORS);
+    const location = extractFirstText(candidate, LOCATION_SELECTORS);
+    const reactionLabel =
+      candidate.querySelector("[data-test-reaction-icon]")?.getAttribute("data-test-reaction-icon") ??
+      candidate.querySelector(".reactor-entry__reaction-type")?.textContent?.trim() ??
+      extractFirstText(candidate, [".reactions-tab__member-reaction-type"]);
+
+    results.push({
+      fullName: name,
+      profileUrl,
+      headline,
+      location,
+      reactionLabel: reactionLabel || undefined
+    });
+
+    if (typeof limit === "number" && limit > 0 && results.length >= limit) {
+      break;
+    }
+  }
+
+  return results;
+}
+
+export function extractComments(options?: EngagementExtractionOptions): ExtractedEngagementProfile[] {
+  const COMMENT_SELECTORS = [
+    "article.comments-comment-item",
+    "li.comments-comments-list__comment-item",
+    "div.comments-comment-item",
+    "li[data-id^='urn:li:comment:']",
+    "article.feed-shared-update-v2__comment-item"
+  ];
+
+  const COMMENT_TEXT_SELECTORS = [
+    ".comments-comment-item__main-content",
+    ".comments-comment-item__body",
+    ".update-components-comment-body__comment",
+    ".feed-shared-comment__text"
+  ];
+
+  const COMMENT_NAME_SELECTORS = [
+    ".comments-post-meta__name-text",
+    ".comments-comment-item__display-name",
+    ".feed-shared-comment__name",
+    "a.comments-comment-item__profile-link span",
+    "a.comments-comment-item__profile-link"
+  ];
+
+  const HEADLINE_SELECTORS = [
+    ".comments-post-meta__headline",
+    ".comments-comment-item__headline",
+    ".feed-shared-comment__headline",
+    ".reactor-entry__member-headline",
+    ".artdeco-entity-lockup__subtitle",
+    ".reactions-tab__member-headline"
+  ];
+
+  const LOCATION_SELECTORS = [
+    ".comments-comment-item__secondary-content",
+    ".reactor-entry__member-secondary-title",
+    ".artdeco-entity-lockup__caption",
+    ".reactions-tab__member-secondary-title"
+  ];
+
+  const ANCHOR_SELECTORS = [
+    "a[href*='/in/']",
+    "a.comments-comment-item__profile-link",
+    "a.artdeco-entity-lockup__subtitle",
+    "a.feed-shared-actor__container-link"
+  ];
+
+  const getCandidates = (root: ParentNode, selectors: string[]): Element[] => {
+    const results: Element[] = [];
+    for (const selector of selectors) {
+      root
+        .querySelectorAll(selector)
+        .forEach((node) => {
+          if (node instanceof Element) {
+            results.push(node);
+          }
+        });
+    }
+    return results;
+  };
+
+  const findAnchor = (element: Element): HTMLAnchorElement | null => {
+    for (const selector of ANCHOR_SELECTORS) {
+      const anchor = element.querySelector?.(selector) as HTMLAnchorElement | null;
+      if (anchor) {
+        return anchor;
+      }
+    }
+    return null;
+  };
+
+  const normalizeUrl = (raw: string, origin: string): string | undefined => {
+    if (!raw) {
+      return undefined;
+    }
+    try {
+      const url = new URL(raw, origin);
+      return url.toString();
+    } catch {
+      return undefined;
+    }
+  };
+
+  const extractFirstText = (element: Element, selectors: string[]): string | undefined => {
+    for (const selector of selectors) {
+      const candidate = element.querySelector(selector);
+      const value = candidate?.textContent?.trim();
+      if (value) {
+        return value;
+      }
+    }
+    return undefined;
+  };
+
+  const root = (options?.root ?? document) as ParentNode & {
+    querySelectorAll: typeof document.querySelectorAll;
+    querySelector: typeof document.querySelector;
+  };
+  const origin =
+    options?.origin ??
+    (typeof location !== "undefined" ? location.href : "https://www.linkedin.com/");
+  const limit = options?.limit;
+
+  const candidates = getCandidates(root, COMMENT_SELECTORS);
+  const results: ExtractedEngagementProfile[] = [];
+  const seen = new Set<string>();
+
+  for (const candidate of candidates) {
+    const anchor = findAnchor(candidate);
+    if (!anchor) {
+      continue;
+    }
+    const profileUrl = normalizeUrl(anchor.getAttribute("href") ?? "", origin);
+    if (!profileUrl || seen.has(profileUrl)) {
+      continue;
+    }
+
+    const name =
+      extractFirstText(candidate, COMMENT_NAME_SELECTORS) ??
+      anchor.textContent?.trim() ??
+      "";
+    if (!name) {
+      continue;
+    }
+
+    const commentText = extractFirstText(candidate, COMMENT_TEXT_SELECTORS);
+
+    seen.add(profileUrl);
+
+    const headline = extractFirstText(candidate, HEADLINE_SELECTORS);
+    const location = extractFirstText(candidate, LOCATION_SELECTORS);
+
+    results.push({
+      fullName: name,
+      profileUrl,
+      headline,
+      location,
+      commentText: commentText || undefined
+    });
+
+    if (typeof limit === "number" && limit > 0 && results.length >= limit) {
+      break;
+    }
+  }
+
+  return results;
+}

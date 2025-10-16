@@ -1,0 +1,24 @@
+.DS_Store
+node_modules/
+dist/
+build/
+playwright-report/
+playwright/.auth/
+data/*.db
+data/*.sqlite
+data/*.json
+
+# Ignore specific files
+AGENTS.md
+config.json
+
+# Ignore entire folders
+node_modules/
+__pycache__/
+dist/
+.env
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
