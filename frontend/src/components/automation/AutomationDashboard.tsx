@@ -496,7 +496,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   });
 
   const createIcpMutation = useMutation({
-    mutationFn: async ({ prompt, commandName }: { prompt: string; commandName?: string }) => {
+    mutationFn: async ({ prompt, commandName }: { prompt: string; commandName: string }) => {
       const { data } = await apiClient.post<AutoPlanResponse>("/workflow/auto-plan", {
         instructions: prompt,
         commandName
@@ -520,7 +520,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   });
 
   const createAccountsMutation = useMutation({
-    mutationFn: async (payload: { accountUrls: string[]; name?: string; leadListName?: string }) => {
+    mutationFn: async (payload: { accountUrls: string[]; name: string; leadListName?: string }) => {
       const { data } = await apiClient.post<SearchTask>("/tasks/accounts", payload);
       return data;
     },
@@ -539,7 +539,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
       postUrls: string[];
       scrapeReactions: boolean;
       scrapeCommenters: boolean;
-      name?: string;
+      name: string;
       leadListName?: string;
     }) => {
       const { data } = await apiClient.post<SearchTask>("/tasks/posts", payload);
@@ -942,12 +942,17 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   const handleSubmitCreateIcp = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      const commandName = icpCommandName.trim();
+      if (!commandName) {
+        setCreateError("Name your automation to continue.");
+        return;
+      }
       const prompt = icpPrompt.trim();
       if (!prompt) {
         setCreateError("Describe your ICP to continue.");
         return;
       }
-      createIcpMutation.mutate({ prompt, commandName: icpCommandName.trim() || undefined });
+      createIcpMutation.mutate({ prompt, commandName });
     },
     [icpPrompt, icpCommandName, createIcpMutation]
   );
@@ -955,6 +960,11 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   const handleSubmitCreateAccounts = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      const name = accountsName.trim();
+      if (!name) {
+        setCreateError("Name your automation to continue.");
+        return;
+      }
       const urls = parseListInput(accountsInput);
       if (urls.length === 0) {
         setCreateError("Add at least one LinkedIn company URL.");
@@ -962,7 +972,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
       }
       createAccountsMutation.mutate({
         accountUrls: urls,
-        name: accountsName.trim() || undefined,
+        name,
         leadListName: accountsLeadList.trim() || undefined
       });
     },
@@ -972,6 +982,11 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   const handleSubmitCreatePosts = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      const name = postsName.trim();
+      if (!name) {
+        setCreateError("Name your automation to continue.");
+        return;
+      }
       const urls = parseListInput(postsInput);
       if (urls.length === 0) {
         setCreateError("Add at least one LinkedIn post URL.");
@@ -985,7 +1000,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
         postUrls: urls,
         scrapeReactions: postsScrapeReactions,
         scrapeCommenters: postsScrapeCommenters,
-        name: postsName.trim() || undefined,
+        name,
         leadListName: postsLeadList.trim() || undefined
       });
     },
@@ -1999,7 +2014,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                   }}
                 >
                   <form
-                    className="modal modal--wide"
+                    className="modal modal--wide modal--create"
                     onClick={(event) => {
                       event.stopPropagation();
                     }}
@@ -2009,9 +2024,124 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                       <h2>{title}</h2>
                       <p className="muted">{description}</p>
                     </header>
-                    <div className="modal__body">
+                    <div className="modal__body modal__body--create">
                       {createError ? <p className="form-error">{createError}</p> : null}
-                      {formContent}
+                      {createMode === "icp" ? (
+                        <div className="stack">
+                          <div className="input-group">
+                            <label htmlFor="icp-command-name">
+                              Automation name <span className="required-indicator">*</span>
+                            </label>
+                            <input
+                              id="icp-command-name"
+                              value={icpCommandName}
+                              onChange={(event) => setIcpCommandName(event.target.value)}
+                              placeholder="e.g., HR SaaS expansion"
+                              required
+                            />
+                          </div>
+                          <div className="input-group">
+                            <label htmlFor="icp-prompt">Describe your ICP</label>
+                            <textarea
+                              id="icp-prompt"
+                              rows={6}
+                              value={icpPrompt}
+                              onChange={(event) => setIcpPrompt(event.target.value)}
+                              placeholder="Target mid-market HR leaders in SaaS companies across North America..."
+                            />
+                          </div>
+                        </div>
+                      ) : createMode === "accounts" ? (
+                        <div className="stack">
+                          <div className="input-group">
+                            <label htmlFor="accounts-name">
+                              Automation name <span className="required-indicator">*</span>
+                            </label>
+                            <input
+                              id="accounts-name"
+                              value={accountsName}
+                              onChange={(event) => setAccountsName(event.target.value)}
+                              placeholder="e.g., Monitor competitor followers"
+                              required
+                            />
+                          </div>
+                          <div className="input-group">
+                            <label htmlFor="accounts-input">LinkedIn company URLs</label>
+                            <textarea
+                              id="accounts-input"
+                              rows={6}
+                              value={accountsInput}
+                              onChange={(event) => setAccountsInput(event.target.value)}
+                              placeholder="https://www.linkedin.com/company/example-one
+https://www.linkedin.com/company/example-two"
+                            />
+                            <small className="muted">Separate each company by a new line or comma.</small>
+                          </div>
+                          <div className="input-group">
+                            <label htmlFor="accounts-leadlist">Target lead list (optional)</label>
+                            <input
+                              id="accounts-leadlist"
+                              value={accountsLeadList}
+                              onChange={(event) => setAccountsLeadList(event.target.value)}
+                              placeholder="Followers - Q4 campaign"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="stack">
+                          <div className="input-group">
+                            <label htmlFor="posts-name">
+                              Automation name <span className="required-indicator">*</span>
+                            </label>
+                            <input
+                              id="posts-name"
+                              value={postsName}
+                              onChange={(event) => setPostsName(event.target.value)}
+                              placeholder="e.g., Capture webinar commenters"
+                              required
+                            />
+                          </div>
+                          <div className="input-group">
+                            <label htmlFor="posts-input">LinkedIn post URLs</label>
+                            <textarea
+                              id="posts-input"
+                              rows={6}
+                              value={postsInput}
+                              onChange={(event) => setPostsInput(event.target.value)}
+                              placeholder="https://www.linkedin.com/posts/..."
+                            />
+                            <small className="muted">Separate each post by a new line or comma.</small>
+                          </div>
+                          <div className="input-group inline">
+                            <label>Collect</label>
+                            <label className="toggle-option">
+                              <input
+                                type="checkbox"
+                                checked={postsScrapeReactions}
+                                onChange={(event) => setPostsScrapeReactions(event.target.checked)}
+                              />
+                              <span>Reactions</span>
+                            </label>
+                            <label className="toggle-option">
+                              <input
+                                type="checkbox"
+                                checked={postsScrapeCommenters}
+                                onChange={(event) => setPostsScrapeCommenters(event.target.checked)}
+                              />
+                              <span>Comments</span>
+                            </label>
+                          </div>
+                          <div className="input-group">
+                            <label htmlFor="posts-leadlist">Target lead list (optional)</label>
+                            <input
+                              id="posts-leadlist"
+                              value={postsLeadList}
+                              onChange={(event) => setPostsLeadList(event.target.value)}
+                              placeholder="Engagement - November launch"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <footer className="modal__footer">
                       <button
