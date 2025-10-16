@@ -117,6 +117,40 @@ export interface SearchTask {
   payload?: SearchTaskPayload;
 }
 
+export interface LeadExperience {
+  title?: string;
+  company?: string;
+  location?: string;
+  dateRangeText?: string;
+  startDate?: string;
+  endDate?: string;
+  description?: string;
+}
+
+export interface LeadEducation {
+  school?: string;
+  degree?: string;
+  fieldOfStudy?: string;
+  dateRangeText?: string;
+}
+
+export interface LeadRecordRaw extends Record<string, unknown> {
+  source?: string;
+  leadListName?: string;
+  profileImageUrl?: string;
+  currentCompanyStartedAt?: string;
+  previousCompanies?: LeadExperience[];
+  experiences?: LeadExperience[];
+  education?: LeadEducation[];
+  birthday?: string;
+  phoneNumbers?: string[];
+  connectionsText?: string;
+  connectionCount?: number;
+  followersText?: string;
+  followerCount?: number;
+  profile?: Record<string, unknown>;
+}
+
 export interface LeadRecord {
   id: string;
   presetId: string;
@@ -130,12 +164,16 @@ export interface LeadRecord {
   location?: string;
   connectionDegree?: string;
   capturedAt: string;
-  raw: Record<string, unknown>;
+  raw: LeadRecordRaw;
   inferredCompanyName?: string;
   inferredCompanyDomain?: string;
   email?: string;
   emailVerificationStatus?: "pending" | "valid" | "invalid" | "unknown" | "not_found";
   taskName?: string;
+  connectionsText?: string;
+  connectionCount?: number;
+  followersText?: string;
+  followerCount?: number;
 }
 
 export interface AutomationSettings {

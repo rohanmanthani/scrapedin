@@ -400,6 +400,67 @@ a:hover {
   flex-wrap: wrap;
 }
 
+.lead-profile {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.lead-profile__avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.lead-profile__avatar--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(226, 232, 240, 0.92);
+  font-weight: 600;
+  font-size: 16px;
+  text-transform: uppercase;
+}
+
+.lead-profile__details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lead-company,
+.lead-contact,
+.lead-connections,
+.lead-locations,
+.lead-source {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lead-contact__label {
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.table-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.table-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .settings-form {
   display: flex;
   flex-direction: column;
