@@ -156,6 +156,7 @@ export interface LeadRecord {
   location?: string;
   connectionDegree?: string;
   capturedAt: string;
+  raw?: (Record<string, unknown> & { source?: string });
   inferredCompanyName?: string;
   inferredCompanyDomain?: string;
   email?: string;

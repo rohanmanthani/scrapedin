@@ -21,6 +21,15 @@ export const createLeadRouter = (leadService: LeadService): Router => {
     })
   );
 
+  router.delete(
+    "/",
+    asyncHandler(async (req, res) => {
+      const ids = Array.isArray(req.body?.ids) ? (req.body.ids as string[]) : [];
+      await leadService.delete(ids);
+      res.status(204).send();
+    })
+  );
+
   router.get(
     "/export",
     asyncHandler(async (_req, res) => {

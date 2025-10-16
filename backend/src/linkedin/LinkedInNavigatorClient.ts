@@ -397,6 +397,7 @@ export class LinkedInNavigatorClient extends BaseLinkedInClient {
           headline,
           connectionDegree,
           raw: {
+            source: "sales_navigator",
             textContent: item.textContent
           }
         };

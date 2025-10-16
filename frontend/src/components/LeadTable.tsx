@@ -1,8 +1,10 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LeadRecord } from "../types";
 import { apiClient } from "../api/client";
 
 export const LeadTable = () => {
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
   const formatStatus = (status?: LeadRecord["emailVerificationStatus"]) => {
     if (!status) {
       return "Not available";
@@ -31,6 +33,45 @@ export const LeadTable = () => {
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
     }
   });
+
+  useEffect(() => {
+    if (!leads?.length) {
+      setSelectedLeadIds([]);
+      return;
+    }
+    setSelectedLeadIds((previous) => previous.filter((id) => leads.some((lead) => lead.id === id)));
+  }, [leads]);
+
+  const toggleLeadSelection = (leadId: string) => {
+    setSelectedLeadIds((previous) => {
+      if (previous.includes(leadId)) {
+        return previous.filter((id) => id !== leadId);
+      }
+      return [...previous, leadId];
+    });
+  };
+
+  const selectAll = (checked: boolean) => {
+    if (!leads?.length) {
+      setSelectedLeadIds([]);
+      return;
+    }
+    setSelectedLeadIds(checked ? leads.map((lead) => lead.id) : []);
+  };
+
+  const deleteMutation = useMutation<void, unknown, string[]>({
+    mutationFn: async (ids: string[]) => {
+      await apiClient.delete("/leads", { data: { ids } });
+    },
+    onSuccess: () => {
+      setSelectedLeadIds([]);
+      void queryClient.invalidateQueries({ queryKey: ["leads"] });
+    }
+  });
+
+  const selectedCount = selectedLeadIds.length;
+  const totalLeads = leads?.length ?? 0;
+  const allSelected = totalLeads > 0 && selectedLeadIds.length === totalLeads;
 
   const downloadCsv = async () => {
     const response = await apiClient.get("/leads/export", { responseType: "blob" });
@@ -62,8 +103,34 @@ export const LeadTable = () => {
                 "Email enrichment failed. Check your OpenAI settings."}
             </small>
           )}
+          {deleteMutation.isSuccess && (
+            <small className="text-success">
+              Deleted {deleteMutation.variables?.length ?? 0} leads.
+            </small>
+          )}
+          {deleteMutation.isError && (
+            <small className="text-error">
+              {(deleteMutation.error instanceof Error && deleteMutation.error.message) ||
+                "Failed to delete selected leads."}
+            </small>
+          )}
         </div>
         <div className="panel__header-actions">
+          <button
+            className="button button--danger"
+            onClick={() => {
+              if (selectedCount) {
+                deleteMutation.mutate(selectedLeadIds);
+              }
+            }}
+            disabled={!selectedCount || deleteMutation.isLoading}
+          >
+            {deleteMutation.isLoading
+              ? "Deleting..."
+              : selectedCount
+                ? `Delete Selected (${selectedCount})`
+                : "Delete Selected"}
+          </button>
           <button
             className="button"
             onClick={() => enrichMutation.mutate()}
@@ -85,9 +152,18 @@ export const LeadTable = () => {
           <table className="table">
             <thead>
               <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    aria-label="Select all leads"
+                    checked={allSelected}
+                    onChange={(event) => selectAll(event.target.checked)}
+                  />
+                </th>
                 <th>Name</th>
                 <th>Title</th>
                 <th>Automation</th>
+                <th>Source</th>
                 <th>Company</th>
                 <th>Email</th>
                 <th>Location</th>
@@ -99,10 +175,23 @@ export const LeadTable = () => {
               {leads.map((lead) => (
                 <tr key={lead.id}>
                   <td>
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${lead.fullName}`}
+                      checked={selectedLeadIds.includes(lead.id)}
+                      onChange={() => toggleLeadSelection(lead.id)}
+                    />
+                  </td>
+                  <td>
                     <strong>{lead.fullName}</strong>
                   </td>
                   <td>{lead.title}</td>
                   <td>{lead.taskName ?? "—"}</td>
+                  <td>
+                    {lead.raw?.source && typeof lead.raw.source === "string"
+                      ? lead.raw.source.replace(/_/g, " ")
+                      : "—"}
+                  </td>
                   <td>
                     <div>{lead.companyName ?? lead.inferredCompanyName ?? "—"}</div>
                     {lead.inferredCompanyDomain && (
