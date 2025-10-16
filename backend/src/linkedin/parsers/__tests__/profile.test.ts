@@ -91,3 +91,25 @@ test("extractProfileDetails captures top card, experience, and education details
     dateRangeText: "2008 - 2012"
   });
 });
+
+test("extractProfileDetails falls back to metadata when heading is missing", () => {
+  const html = `
+    <html>
+      <head>
+        <meta property="og:title" content="Kamil Czaja | LinkedIn" />
+      </head>
+      <body>
+        <main>
+          <script type="application/ld+json">
+            {"@context":"https://schema.org","@type":"Person","name":"Kamil Czaja"}
+          </script>
+        </main>
+      </body>
+    </html>
+  `;
+
+  const document = buildDocument(html);
+  const details = extractProfileDetails({ root: document });
+
+  assert.equal(details.fullName, "Kamil Czaja");
+});
