@@ -87,11 +87,10 @@ export const LeadTable = () => {
   };
 
   return (
-    <div className="panel">
-      <div className="panel__header">
-        <div className="panel__header-info">
-          <h2>Captured Leads</h2>
-          <p>{leads?.length ?? 0} saved profiles</p>
+    <div className="lead-table">
+      <div className="lead-table__toolbar">
+        <div className="lead-table__meta">
+          <p className="lead-table__count">{leads?.length ?? 0} saved profiles</p>
           {enrichMutation.isSuccess && (
             <small className="text-success">
               Email enrichment complete. Updated {enrichMutation.data?.updated ?? 0} leads.
@@ -115,7 +114,7 @@ export const LeadTable = () => {
             </small>
           )}
         </div>
-        <div className="panel__header-actions">
+        <div className="lead-table__actions">
           <button
             className="button button--danger"
             onClick={() => {
