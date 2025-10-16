@@ -1,7 +1,12 @@
 import { logger } from "../logger.js";
 import type { AutomationSettings, LeadRecord } from "../types.js";
 import { BaseLinkedInClient } from "./BaseLinkedInClient.js";
-import { extractComments, extractReactors } from "./parsers/postEngagement.js";
+import {
+  extractComments,
+  extractReactors,
+  type ExtractedEngagementProfile
+} from "./parsers/postEngagement.js";
+import { extractProfileDetails, type ExtractedProfileDetails } from "./parsers/profile.js";
 import type { BrowserContext, Page } from "playwright";
 
 interface PostEngagementInput {
@@ -64,6 +69,8 @@ const COMMENT_SEE_MORE_SELECTORS = [
 ];
 
 export class PostEngagementScraper extends BaseLinkedInClient {
+  private readonly profileDetailCache = new Map<string, ExtractedProfileDetails | null>();
+
   constructor(settings: AutomationSettings) {
     super(settings);
   }
@@ -87,21 +94,26 @@ export class PostEngagementScraper extends BaseLinkedInClient {
 
         if (input.scrapeReactions) {
           const reactors = await this.collectReactors(context, page, normalizedPostUrl, limit);
+          const enrichedReactors = await this.enrichEngagementProfiles(context, reactors);
           this.mergeLeads(
             aggregated,
             dedupe,
-            this.mapReactorProfiles(reactors, input, normalizedPostUrl)
+            this.mapReactorProfiles(enrichedReactors, input, normalizedPostUrl)
           );
         }
 
         if (input.scrapeCommenters) {
           const commenters = await this.collectCommenters(page, normalizedPostUrl, limit);
+          const enrichedCommenters = await this.enrichEngagementProfiles(context, commenters);
           this.mergeLeads(
             aggregated,
             dedupe,
-            this.mapCommentProfiles(commenters, input, normalizedPostUrl)
+            this.mapCommentProfiles(enrichedCommenters, input, normalizedPostUrl)
           );
-          logger.info({ postUrl: normalizedPostUrl, commenters: commenters.length }, "Collected post commenters");
+          logger.info(
+            { postUrl: normalizedPostUrl, commenters: commenters.length },
+            "Collected post commenters"
+          );
         }
       } catch (error) {
         logger.error({ err: error, postUrl: rawPostUrl }, "Failed to scrape post engagement");
@@ -129,6 +141,83 @@ export class PostEngagementScraper extends BaseLinkedInClient {
       }
       seen.add(key);
       target.push(lead);
+    }
+  }
+
+  private needsProfileEnrichment(profile: ExtractedEngagementProfile): boolean {
+    const hasValidName = Boolean(profile.fullName && profile.fullName.length > 1);
+    const needsNameCleanup = /\bView\b.*profile\b/i.test(profile.fullName ?? "");
+    const missingHeadline = !profile.headline || profile.headline.length < 2;
+    const missingLocation = !profile.location || profile.location.length < 2;
+    const missingCompany = !profile.currentCompany;
+    return !hasValidName || needsNameCleanup || missingHeadline || missingLocation || missingCompany;
+  }
+
+  private async enrichEngagementProfiles<T extends ExtractedEngagementProfile>(
+    context: BrowserContext,
+    profiles: T[]
+  ): Promise<T[]> {
+    const results: T[] = [];
+    for (const profile of profiles) {
+      if (!profile.profileUrl || !this.needsProfileEnrichment(profile)) {
+        results.push(profile);
+        continue;
+      }
+
+      const cacheKey = profile.profileUrl.toLowerCase();
+      let details = this.profileDetailCache.get(cacheKey) ?? null;
+      if (details === null && this.profileDetailCache.has(cacheKey)) {
+        results.push(profile);
+        continue;
+      }
+
+      if (!details) {
+        details = await this.fetchProfileDetails(context, profile.profileUrl);
+        this.profileDetailCache.set(cacheKey, details);
+      }
+
+      if (!details) {
+        results.push(profile);
+        continue;
+      }
+
+      results.push({
+        ...profile,
+        fullName: details.fullName ?? profile.fullName,
+        headline: details.headline ?? profile.headline,
+        location: details.location ?? profile.location,
+        currentTitle: details.currentTitle ?? profile.currentTitle ?? details.headline ?? profile.headline,
+        currentCompany: details.currentCompany ?? profile.currentCompany
+      });
+    }
+
+    return results;
+  }
+
+  private async fetchProfileDetails(
+    context: BrowserContext,
+    profileUrl: string
+  ): Promise<ExtractedProfileDetails | null> {
+    const page = await context.newPage();
+    try {
+      logger.debug({ profileUrl }, "Fetching LinkedIn profile details for enrichment");
+      await page.goto(profileUrl, {
+        waitUntil: "domcontentloaded",
+        timeout: this.settings.pageTimeoutMs
+      });
+      await this.randomDelay();
+      try {
+        await page.waitForSelector("main", { timeout: Math.min(this.settings.pageTimeoutMs, 8000) });
+      } catch {
+        // Ignore if the main selector does not appear quickly; we'll attempt extraction anyway.
+      }
+      const details = await page.evaluate(extractProfileDetails);
+      return details;
+    } catch (error) {
+      logger.warn({ err: error, profileUrl }, "Unable to enrich profile from LinkedIn page");
+      return null;
+    } finally {
+      await page.close();
     }
   }
 
@@ -394,8 +483,9 @@ export class PostEngagementScraper extends BaseLinkedInClient {
           presetId: input.taskId,
           profileUrl: profile.profileUrl,
           fullName: profile.fullName,
-          title: profile.headline,
+          title: profile.currentTitle ?? profile.headline,
           headline: profile.headline,
+          companyName: profile.currentCompany,
           location: profile.location,
           capturedAt: timestamp,
           raw: {
@@ -426,8 +516,9 @@ export class PostEngagementScraper extends BaseLinkedInClient {
           presetId: input.taskId,
           profileUrl: profile.profileUrl,
           fullName: profile.fullName,
-          title: profile.headline,
+          title: profile.currentTitle ?? profile.headline,
           headline: profile.headline,
+          companyName: profile.currentCompany,
           location: profile.location,
           capturedAt: timestamp,
           raw: {
