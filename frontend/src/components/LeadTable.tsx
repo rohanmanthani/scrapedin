@@ -24,9 +24,10 @@ export const LeadTable = () => {
     },
     refetchInterval: 30_000
   });
-  const enrichMutation = useMutation({
-    mutationFn: async () => {
-      const { data } = await apiClient.post<{ updated: number }>("/leads/enrich");
+  const enrichMutation = useMutation<{ updated: number }, unknown, string[] | undefined>({
+    mutationFn: async (ids) => {
+      const payload = ids?.length ? { ids } : undefined;
+      const { data } = await apiClient.post<{ updated: number }>("/leads/enrich", payload);
       return data;
     },
     onSuccess: () => {
@@ -74,7 +75,12 @@ export const LeadTable = () => {
   const allSelected = totalLeads > 0 && selectedLeadIds.length === totalLeads;
 
   const downloadCsv = async () => {
-    const response = await apiClient.get("/leads/export", { responseType: "blob" });
+    const query = selectedLeadIds.length
+      ? `?ids=${selectedLeadIds.map((id) => encodeURIComponent(id)).join(",")}`
+      : "";
+    const response = await apiClient.get(`/leads/export${query}`, {
+      responseType: "blob"
+    });
     const blob = new Blob([response.data], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -132,13 +138,19 @@ export const LeadTable = () => {
           </button>
           <button
             className="button"
-            onClick={() => enrichMutation.mutate()}
+            onClick={() =>
+              enrichMutation.mutate(selectedLeadIds.length ? [...selectedLeadIds] : undefined)
+            }
             disabled={enrichMutation.isLoading}
           >
-            {enrichMutation.isLoading ? "Fetching emails..." : "Fetch Emails"}
+            {enrichMutation.isLoading
+              ? "Fetching emails..."
+              : selectedCount
+                ? `Fetch Emails (${selectedCount})`
+                : "Fetch Emails"}
           </button>
           <button className="button button--secondary" onClick={downloadCsv}>
-            Export CSV
+            {selectedCount ? `Export Selected (${selectedCount})` : "Export CSV"}
           </button>
         </div>
       </div>

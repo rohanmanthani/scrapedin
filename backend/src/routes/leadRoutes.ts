@@ -2,6 +2,25 @@ import { Router } from "express";
 import { asyncHandler } from "./utils.js";
 import { LeadService } from "../services/LeadService.js";
 
+const parseIds = (value: unknown): string[] | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(String).filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+  }
+
+  return undefined;
+};
+
 export const createLeadRouter = (leadService: LeadService): Router => {
   const router = Router();
 
@@ -15,8 +34,9 @@ export const createLeadRouter = (leadService: LeadService): Router => {
 
   router.post(
     "/enrich",
-    asyncHandler(async (_req, res) => {
-      const updates = await leadService.enrichPendingEmails();
+    asyncHandler(async (req, res) => {
+      const ids = parseIds(req.body?.ids);
+      const updates = await leadService.enrichPendingEmails(ids);
       res.json({ updated: updates.length, leads: updates });
     })
   );
@@ -32,8 +52,9 @@ export const createLeadRouter = (leadService: LeadService): Router => {
 
   router.get(
     "/export",
-    asyncHandler(async (_req, res) => {
-      const csv = await leadService.exportAsCsv();
+    asyncHandler(async (req, res) => {
+      const ids = parseIds(req.query?.ids);
+      const csv = await leadService.exportAsCsv(ids);
       res.header("Content-Type", "text/csv");
       res.attachment("leads.csv");
       res.send(csv);
