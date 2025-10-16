@@ -6,9 +6,9 @@ Local-first toolkit for designing and running LinkedIn Sales Navigator automatio
 
 ## Key Capabilities
 
-- **Automations home**: Draft new scraping tasks from the Automations page by describing an ICP, providing company URLs, or supplying post URLs. Every task is created in `draft` state so you can adjust filters before execution, then queued once you are ready.
+- **Automations home**: Draft new scraping tasks from the Automations page by describing an ICP, providing company URLs, supplying post URLs, or pasting a list of LinkedIn profiles. Every task is created in `draft` state so you can adjust filters before execution, then queued once you are ready.
 - **Rich Sales Navigator filters**: The preset editor now mirrors the fields available in Sales Navigator (keywords, geography, company HQ, seniority, buyer intent toggles, TeamLink paths, etc.).
-- **Task taxonomy**: Tasks are typed (`sales_navigator`, `account_followers`, `post_engagement`) so we can plug in bespoke scrapers per workflow while re-using the same scheduler UI.
+- **Task taxonomy**: Tasks are typed (`sales_navigator`, `account_followers`, `post_engagement`, `profile_scrape`) so we can plug in bespoke scrapers per workflow while re-using the same scheduler UI.
 - **Safety guardrails**: Quiet hours, daily search/lead caps, random delays, and headless/visible toggles remain configurable under Settings.
 - **Local persistence**: Everything (settings, presets, tasks, leads) lives inside `data/app-state.json`. Back it up or wipe it to reset state.
 
@@ -30,6 +30,7 @@ data/      Local JSON datastore (auto-created)
 - New routes:
   - `POST /api/tasks/accounts` – create follower-scraping drafts from company URLs.
   - `POST /api/tasks/posts` – create engagement-scraping drafts from post URLs.
+  - `POST /api/tasks/profiles` – create profile-scraping drafts from LinkedIn profile URLs.
 
 ### Frontend Highlights
 
@@ -78,6 +79,7 @@ Visit `http://localhost:5173` and work through the Settings → Automations flow
    - **Create by ICP** – freeform text prompt that OpenAI converts into presets + draft tasks.
    - **Create by Accounts** – comma/newline separated company URLs. Draft task feeds the follower scraper when started.
    - **Create by Posts** – comma/newline separated post URLs with checkboxes for reactions/commenters.
+   - **Create by Profiles** – comma/newline separated LinkedIn profile URLs. Draft task scrapes each profile for top-card, experience, and contact details when run.
 3. Review the draft row, open the overflow menu, and (for Sales Navigator jobs) edit filters before starting.
 4. Start or pause jobs directly from the Automations table once you are satisfied with the configuration; the first manual start auto-arms the background runner (even during quiet hours) so you don't have to toggle it separately.
 

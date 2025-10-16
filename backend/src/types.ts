@@ -85,12 +85,17 @@ export type TaskStatus = "draft" | "pending" | "queued" | "running" | "succeeded
 
 export type AutomationModeId = "ultra_safe" | "safe" | "balanced" | "aggressive";
 
-export type SearchTaskType = "sales_navigator" | "account_followers" | "post_engagement";
+export type SearchTaskType =
+  | "sales_navigator"
+  | "account_followers"
+  | "post_engagement"
+  | "profile_scrape";
 
 export interface SearchTaskPayload {
   icpPrompt?: string;
   accountUrls?: string[];
   postUrls?: string[];
+  profileUrls?: string[];
   scrapeReactions?: boolean;
   scrapeCommenters?: boolean;
   targetLeadListName?: string;

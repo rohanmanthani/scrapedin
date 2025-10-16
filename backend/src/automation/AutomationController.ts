@@ -9,6 +9,7 @@ import { AutomationSettingsService } from "../services/AutomationSettingsService
 import { SearchTaskService } from "../services/SearchTaskService.js";
 import { SearchPresetService } from "../services/SearchPresetService.js";
 import { LeadService } from "../services/LeadService.js";
+import { ProfileListScraper } from "../linkedin/ProfileListScraper.js";
 
 const isWithinQuietHours = (settings: AutomationSettings, now = new Date()): boolean => {
   if (!settings.respectQuietHours || !settings.quietHours) {
@@ -25,7 +26,8 @@ const isWithinQuietHours = (settings: AutomationSettings, now = new Date()): boo
 const SUPPORTED_TASK_TYPES = new Set<SearchTaskType>([
   "sales_navigator",
   "account_followers",
-  "post_engagement"
+  "post_engagement",
+  "profile_scrape"
 ]);
 
 const pickQueueableTasks = (
@@ -232,6 +234,9 @@ export class AutomationController {
       case "post_engagement":
         await this.executePostEngagementTask(task);
         break;
+      case "profile_scrape":
+        await this.executeProfileScrapeTask(task);
+        break;
       default:
         logger.warn({ taskId: task.id, type }, "Unhandled task type encountered by automation controller");
     }
@@ -360,6 +365,46 @@ export class AutomationController {
       });
     } catch (error) {
       logger.error({ err: error, taskId: task.id }, "Post engagement task failed");
+      await this.taskService.updateStatus(task.id, "failed", {
+        errorMessage: error instanceof Error ? error.message : String(error),
+        completedAt: new Date().toISOString()
+      });
+    } finally {
+      await scraper.dispose();
+    }
+  }
+
+  private async executeProfileScrapeTask(task: SearchTask): Promise<void> {
+    const payload = task.payload ?? {};
+    const profileUrls = payload.profileUrls ?? [];
+    if (!profileUrls.length) {
+      logger.warn({ taskId: task.id }, "Profile scrape task missing profile URLs");
+      await this.taskService.updateStatus(task.id, "failed", {
+        errorMessage: "No profile URLs provided",
+        completedAt: new Date().toISOString()
+      });
+      return;
+    }
+
+    const scraper = new ProfileListScraper(task.settingsSnapshot);
+    await this.taskService.updateStatus(task.id, "running", { startedAt: new Date().toISOString() });
+
+    try {
+      const leads = await scraper.scrape({
+        taskId: task.id,
+        taskName: task.name,
+        profileUrls,
+        leadListName: payload.targetLeadListName
+      });
+      if (leads.length) {
+        await this.leadService.append(leads);
+      }
+      await this.taskService.updateStatus(task.id, "succeeded", {
+        completedAt: new Date().toISOString(),
+        resultLeadIds: leads.map((lead) => lead.id)
+      });
+    } catch (error) {
+      logger.error({ err: error, taskId: task.id }, "Profile scrape task failed");
       await this.taskService.updateStatus(task.id, "failed", {
         errorMessage: error instanceof Error ? error.message : String(error),
         completedAt: new Date().toISOString()

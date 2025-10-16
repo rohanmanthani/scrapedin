@@ -105,6 +105,26 @@ export class SearchTaskService {
     return this.withDefaults(await this.repository.saveTask(task));
   }
 
+  async createProfileTask(
+    settings: AutomationSettings,
+    input: { name?: string; profileUrls: string[]; targetLeadListName?: string }
+  ): Promise<SearchTask> {
+    const task: SearchTask = {
+      id: randomUUID(),
+      type: "profile_scrape",
+      status: "draft",
+      createdAt: nowIso(),
+      name: input.name ?? "Profile List",
+      resultLeadIds: [],
+      settingsSnapshot: settings,
+      payload: {
+        profileUrls: input.profileUrls,
+        targetLeadListName: input.targetLeadListName
+      }
+    };
+    return this.withDefaults(await this.repository.saveTask(task));
+  }
+
   async update(taskId: string, patch: Partial<SearchTask>): Promise<SearchTask> {
     const tasks = await this.repository.listTasks();
     const existing = tasks.find((task) => task.id === taskId);
