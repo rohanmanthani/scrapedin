@@ -4,6 +4,8 @@ export interface ExtractedProfileDetails {
   location?: string;
   currentTitle?: string;
   currentCompany?: string;
+  profileImageUrl?: string;
+  email?: string;
 }
 
 interface ProfileExtractionOptions {
@@ -70,6 +72,44 @@ const extractFromExperience = (element: Element): { title?: string; company?: st
   return { title, company };
 };
 
+const getFirstAttribute = (
+  root: ParentNode,
+  selectors: string[],
+  attribute: string
+): string | undefined => {
+  const scopedRoot = root as ParentNode & { querySelector: typeof document.querySelector };
+  for (const selector of selectors) {
+    const element = scopedRoot.querySelector(selector);
+    if (element instanceof Element) {
+      const value = element.getAttribute(attribute);
+      if (value) {
+        const trimmed = value.trim();
+        if (trimmed) {
+          return trimmed;
+        }
+      }
+    }
+  }
+  return undefined;
+};
+
+const cleanEmail = (value: string | undefined): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  const normalized = value.trim();
+  if (!normalized) {
+    return undefined;
+  }
+  const email = normalized.replace(/^mailto:/i, "");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return undefined;
+  }
+  return email;
+};
+
+export function extractProfileDetails(): ExtractedProfileDetails;
+export function extractProfileDetails(options?: ProfileExtractionOptions): ExtractedProfileDetails;
 export function extractProfileDetails(options?: ProfileExtractionOptions): ExtractedProfileDetails {
   const root = (options?.root ?? document) as ParentNode & {
     querySelector: typeof document.querySelector;
@@ -132,11 +172,43 @@ export function extractProfileDetails(options?: ProfileExtractionOptions): Extra
     }
   }
 
+  const profileImageUrl = getFirstAttribute(root, [
+    "img.profile-photo-edit__preview",
+    "img.pv-top-card-profile-picture__image",
+    "img[data-test-id='profile-photo']",
+    "img.top-card-profile-picture__image",
+    "img.profile-photo-edit__preview-image"
+  ], "src");
+
+  const contactRoots: ParentNode[] = [root];
+  root
+    .querySelectorAll(
+      "section.pv-contact-info__contact-type, section[data-test-id='profile-contact-info'], div.artdeco-modal__content"
+    )
+    .forEach((section) => {
+      if (section instanceof Element) {
+        contactRoots.push(section);
+      }
+    });
+  const email = cleanEmail(
+    contactRoots
+      .map((contactRoot) =>
+        getFirstAttribute(contactRoot, [
+          "a[href^='mailto:']",
+          "a[data-test-id='top-card-contact-info-email']",
+          "a[data-field='email']"
+        ], "href")
+      )
+      .find((value): value is string => Boolean(value))
+  );
+
   return {
     fullName: fullName ?? undefined,
     headline: headline ?? undefined,
     location,
     currentTitle: currentTitle ?? headline ?? undefined,
-    currentCompany: currentCompany ?? undefined
+    currentCompany: currentCompany ?? undefined,
+    profileImageUrl: profileImageUrl ?? undefined,
+    email
   };
 }
