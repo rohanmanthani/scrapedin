@@ -2,6 +2,10 @@ import { logger } from "../logger.js";
 import type { AutomationSettings, LeadRecord } from "../types.js";
 import { BaseLinkedInClient } from "./BaseLinkedInClient.js";
 import { extractProfileDetails, type ExtractedProfileDetails } from "./parsers/profile.js";
+import {
+  LinkedInProfileStagehandAnalyzer,
+  type LinkedInStagehandAnalysis
+} from "./stagehand/LinkedInProfileStagehandAnalyzer.js";
 import type { Page } from "playwright";
 
 interface ProfileListInput {
@@ -12,8 +16,11 @@ interface ProfileListInput {
 }
 
 export class ProfileListScraper extends BaseLinkedInClient {
+  private stagehandAnalyzer: LinkedInProfileStagehandAnalyzer;
+
   constructor(settings: AutomationSettings) {
     super(settings);
+    this.stagehandAnalyzer = new LinkedInProfileStagehandAnalyzer();
   }
 
   async scrape(input: ProfileListInput): Promise<LeadRecord[]> {
@@ -54,7 +61,12 @@ export class ProfileListScraper extends BaseLinkedInClient {
         }
 
         await this.openContactInfo(page);
-        const details = await page.evaluate(extractProfileDetails);
+
+        // Use hybrid approach: stagehand analyzer for main fields + legacy parser for additional fields
+        const html = await page.content();
+        const stagehandAnalysis = this.stagehandAnalyzer.analyzeHtml(html);
+        const legacyDetails = await page.evaluate(extractProfileDetails);
+        const details = this.mergeProfileDetails(stagehandAnalysis, legacyDetails);
 
         // Debug logging
         logger.debug(
@@ -70,7 +82,8 @@ export class ProfileListScraper extends BaseLinkedInClient {
             extractedTitle: details.currentTitle,
             extractedCompany: details.currentCompany,
             extractedCompanyUrl: details.currentCompanyUrl,
-            headline: details.headline
+            headline: details.headline,
+            stagehandWarnings: stagehandAnalysis.metadata.warnings
           },
           "Extracted profile details with experience data"
         );
@@ -92,7 +105,8 @@ export class ProfileListScraper extends BaseLinkedInClient {
                 location: details.location,
                 currentTitle: details.currentTitle,
                 currentCompany: details.currentCompany
-              }
+              },
+              stagehandWarnings: stagehandAnalysis.metadata.warnings
             },
             "Profile missing a discoverable full name; skipping. Page title and other extracted data included for debugging."
           );
@@ -223,5 +237,59 @@ export class ProfileListScraper extends BaseLinkedInClient {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Merge stagehand analysis with legacy parser results.
+   * Prefers stagehand for main fields (better selectors), falls back to legacy for additional fields.
+   */
+  private mergeProfileDetails(
+    stagehandAnalysis: LinkedInStagehandAnalysis,
+    legacyDetails: ExtractedProfileDetails
+  ): ExtractedProfileDetails {
+    const getStagehandField = (fieldName: string): string | undefined => {
+      const field = stagehandAnalysis.fields.find((f) => f.field === fieldName);
+      return field?.value;
+    };
+
+    // Map experiences from stagehand format to legacy format
+    const stagehandExperiences = stagehandAnalysis.experiences.map((exp) => ({
+      title: exp.fields.title.value ?? "",
+      company: exp.fields.company.value ?? "",
+      companyUrl: exp.fields.companyUrl.value,
+      startDate: undefined,
+      endDate: exp.isCurrent ? undefined : "",
+      dateRangeText: exp.fields.dateRange.value,
+      location: exp.fields.location.value,
+      description: undefined
+    }));
+
+    // Prefer stagehand for main fields (name, headline, title, company, location, image)
+    // Use legacy for fields stagehand doesn't extract (email, phone, connections, education, etc.)
+    return {
+      // Main profile fields - prefer stagehand (better selectors)
+      fullName: getStagehandField("fullName") || legacyDetails.fullName,
+      headline: getStagehandField("headline") || legacyDetails.headline,
+      location: getStagehandField("location") || legacyDetails.location,
+      profileImageUrl: getStagehandField("profileImageUrl") || legacyDetails.profileImageUrl,
+      currentTitle: getStagehandField("currentTitle") || legacyDetails.currentTitle,
+      currentCompany: getStagehandField("currentCompany") || legacyDetails.currentCompany,
+      currentCompanyUrl: getStagehandField("currentCompanyUrl") || legacyDetails.currentCompanyUrl,
+
+      // Experience data - prefer stagehand if available, otherwise use legacy
+      experiences:
+        stagehandExperiences.length > 0 ? stagehandExperiences : legacyDetails.experiences,
+      currentCompanyStartedAt: legacyDetails.currentCompanyStartedAt,
+
+      // Additional fields - only available from legacy parser
+      email: legacyDetails.email,
+      phoneNumbers: legacyDetails.phoneNumbers,
+      birthday: legacyDetails.birthday,
+      education: legacyDetails.education,
+      connectionsText: legacyDetails.connectionsText,
+      connectionCount: legacyDetails.connectionCount,
+      followersText: legacyDetails.followersText,
+      followerCount: legacyDetails.followerCount
+    };
   }
 }

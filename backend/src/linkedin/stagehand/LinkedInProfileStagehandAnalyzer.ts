@@ -163,27 +163,42 @@ const PROFILE_IMAGE_GROUPS: SelectorGroup[] = [
     selectors: [
       "img.profile-photo-edit__preview",
       "img.pv-top-card-profile-picture__image",
+      "img[data-test-id='profile-photo']",
+      "img.top-card-profile-picture__image",
       "img[class*='profile-photo']"
     ]
   },
   {
     name: "legacy",
     selectors: [
-      "img.profile-photo-edit__preview",
-      "img.pv-top-card-profile-picture__image",
-      "img.profile-photo-edit__preview"
+      "img.profile-photo-edit__preview-image",
+      "img.pv-top-card-profile-picture__image--show",
+      "button.pv-top-card-profile-picture img",
+      "div.pv-top-card__photo img"
     ]
   },
   {
     name: "generic",
     selectors: [
-      "main img",
-      "section img"
+      "div.pv-top-card img",
+      "section.pv-top-card img",
+      "div[class*='top-card'] img:not([alt*='company']):not([alt*='Company'])",
+      "button[class*='profile-picture'] img"
     ]
   }
 ];
 
 const EXPERIENCE_ITEM_SELECTORS = [
+  // Modern LinkedIn with obfuscated classes - rely on structure and artdeco-list__item
+  // Find experience section by anchor, then get first-level list items (avoid nested sub-components)
+  "div[id='experience'] ~ div > div > ul > li.artdeco-list__item",
+  "div.pv-profile-card__anchor#experience ~ div > div > ul > li.artdeco-list__item",
+
+  // Broader modern selectors
+  "div[id='experience'] ~ div ul > li.artdeco-list__item",
+  "div.pv-profile-card__anchor#experience ~ div ul > li.artdeco-list__item",
+
+  // Legacy selectors (still used by some profiles)
   "section[id*='experience'] ul.pvs-list > li.artdeco-list__item",
   "section[id*='experience'] ul.pvs-list > li",
   "section[id*='experience'] div.pvs-list__container > ul > li",
@@ -191,19 +206,18 @@ const EXPERIENCE_ITEM_SELECTORS = [
   "section#experience-section ul.pv-profile-section__section-info > li",
   "section.experience__section ul > li",
   "section[data-test='experience-section'] ul > li",
-  "section[id*='experience'] li[class*='pvs-list']",
-  "section[class*='experience'] ul > li"
+  "section[id*='experience'] li.artdeco-list__item"
 ];
 
 const EXPERIENCE_TITLE_GROUPS: SelectorGroup[] = [
   {
     name: "modern",
     selectors: [
-      "div.display-flex.align-items-center span[aria-hidden='true']",
       "div.mr1.t-bold span[aria-hidden='true']",
-      "div.t-bold span[aria-hidden='true']",
+      "div.display-flex.align-items-center > div.mr1.t-bold span[aria-hidden='true']",
+      "div.t-bold > span[aria-hidden='true']:first-child",
       "span.mr1.hoverable-link-text.t-bold span[aria-hidden='true']",
-      "div[class*='t-bold'] span[aria-hidden='true']"
+      "div.display-flex.flex-column.full-width > div:first-child span[aria-hidden='true']:first-child"
     ]
   },
   {
@@ -212,12 +226,16 @@ const EXPERIENCE_TITLE_GROUPS: SelectorGroup[] = [
       "span[data-test='experience-entity-title']",
       "span[data-field='experience-title']",
       "span.t-14.t-black.t-bold",
-      "div.display-flex.flex-column.full-width.align-self-center span:first-child"
+      "h3 span[aria-hidden='true']",
+      "div.display-flex.flex-column.full-width.align-self-center > span:first-child"
     ]
   },
   {
     name: "generic",
-    selectors: ["span[aria-hidden='true']"]
+    selectors: [
+      "div:first-child span[aria-hidden='true']:first-child",
+      "span.t-bold span[aria-hidden='true']"
+    ]
   }
 ];
 
@@ -225,9 +243,11 @@ const EXPERIENCE_COMPANY_GROUPS: SelectorGroup[] = [
   {
     name: "modern",
     selectors: [
-      "span.t-14.t-normal span[aria-hidden='true']",
-      "div.t-14.t-normal span[aria-hidden='true']",
-      "span.t-14.t-normal.t-black span[aria-hidden='true']"
+      // Company name is in a span.t-14.t-normal that comes AFTER the title
+      "span.t-14.t-normal:not(.t-black--light) > span[aria-hidden='true']",
+      "div.t-14.t-normal:not(.t-black--light) > span[aria-hidden='true']",
+      // Within the company link, look for non-bold spans
+      "a[href*='/company/'] span.t-14.t-normal span[aria-hidden='true']"
     ]
   },
   {
@@ -236,13 +256,16 @@ const EXPERIENCE_COMPANY_GROUPS: SelectorGroup[] = [
       "span[data-test='experience-entity-subtitle']",
       "span[data-field='experience-company-name']",
       "p.pv-entity__secondary-title",
-      "span.t-14.t-normal",
+      "span.t-14.t-normal:not(.t-black--light)",
       "div.display-flex.flex-column.full-width.align-self-center span:nth-child(2)"
     ]
   },
   {
     name: "generic",
-    selectors: ["span[aria-hidden='true']"]
+    selectors: [
+      // Last resort - look for any span in t-14 t-normal that's not the title
+      "span.t-14.t-normal span[aria-hidden='true']"
+    ]
   }
 ];
 
@@ -259,10 +282,7 @@ const EXPERIENCE_DATE_GROUPS: SelectorGroup[] = [
   },
   {
     name: "legacy",
-    selectors: [
-      "h4 span.pv-entity__date-range span:nth-child(2)",
-      "span.pv-entity__bullet-item-v2"
-    ]
+    selectors: ["h4 span.pv-entity__date-range span:nth-child(2)", "span.pv-entity__bullet-item-v2"]
   }
 ];
 
@@ -336,7 +356,9 @@ const computeDomPath = (element?: Element | null): string | undefined => {
     const parent: Element | null = activeCurrent.parentElement;
     if (parent) {
       const siblings = Array.from(parent.children) as Element[];
-      const sameTagSiblings = siblings.filter((sibling) => sibling.tagName === activeCurrent.tagName);
+      const sameTagSiblings = siblings.filter(
+        (sibling) => sibling.tagName === activeCurrent.tagName
+      );
       if (sameTagSiblings.length > 1) {
         const position = sameTagSiblings.findIndex((sibling) => sibling === activeCurrent);
         if (position >= 0) {
@@ -361,7 +383,6 @@ const matchFromGroups = (root: ParentNode, groups: SelectorGroup[]): MatchResult
       const element = scopedRoot.querySelector(selector);
       const value = cleanText(element?.textContent ?? undefined);
       if (value) {
-        const confidence = computeConfidence(tierIndex, selectorIndex);
         const notes: string[] = [];
         if (tierIndex > 0) {
           notes.push(`Matched fallback tier "${group.name}" (index ${tierIndex}).`);
@@ -401,7 +422,6 @@ const matchAttributeFromGroups = (
       const attrValue = element?.getAttribute?.(attribute) ?? undefined;
       const value = cleanText(attrValue ?? undefined) ?? attrValue ?? undefined;
       if (value) {
-        const confidence = computeConfidence(tierIndex, selectorIndex);
         const notes: string[] = [];
         if (tierIndex > 0) {
           notes.push(`Matched fallback tier "${group.name}" (index ${tierIndex}).`);
@@ -446,13 +466,38 @@ const parseDateRangeParts = (value?: string): { startDate?: string; endDate?: st
 const findExperienceElements = (root: ParentNode): Element[] => {
   const scopedRoot = root as ParentNode & {
     querySelectorAll: typeof document.querySelectorAll;
+    querySelector: typeof document.querySelector;
   };
   const results: Element[] = [];
   const seen = new Set<Element>();
+
+  // First, try to find the education section to filter out education items
+  const educationAnchor = scopedRoot.querySelector("div[id='education']");
+
   for (const selector of EXPERIENCE_ITEM_SELECTORS) {
     const matches = scopedRoot.querySelectorAll(selector);
     matches.forEach((element) => {
       if (isElementNode(element) && !seen.has(element)) {
+        // Filter out education items by checking if element contains education-related text
+        const elementText = element.textContent || "";
+
+        // Skip items that look like education (have degree keywords but no company link)
+        const hasCompanyLink = element.querySelector("a[href*='/company/']");
+        const hasSchoolLink = element.querySelector("a[href*='/school/']");
+        const hasDegreeKeywords =
+          /\b(bachelor|master|phd|degree|university|college|school)\b/i.test(elementText);
+
+        // If it has school link or degree keywords without company link, likely education
+        if ((hasSchoolLink || (hasDegreeKeywords && !hasCompanyLink)) && educationAnchor) {
+          // Additional check: does it contain typical experience keywords?
+          const hasExperienceKeywords = /\b(present|current|·|yrs?|mos?|months?)\b/i.test(
+            elementText
+          );
+          if (!hasExperienceKeywords) {
+            return; // Skip education items
+          }
+        }
+
         seen.add(element);
         results.push(element);
       }
@@ -463,36 +508,57 @@ const findExperienceElements = (root: ParentNode): Element[] => {
 
 const analyzeExperienceElement = (element: Element, index: number): StagehandExperienceInsight => {
   const titleMatch = matchFromGroups(element, EXPERIENCE_TITLE_GROUPS);
-  const companyLinkMatch = matchAttributeFromGroups(element, [{ name: "link", selectors: EXPERIENCE_COMPANY_LINK_SELECTORS }], "href");
+  const companyLinkMatch = matchAttributeFromGroups(
+    element,
+    [{ name: "link", selectors: EXPERIENCE_COMPANY_LINK_SELECTORS }],
+    "href"
+  );
   const companyMatch = matchFromGroups(element, EXPERIENCE_COMPANY_GROUPS);
   const dateRangeMatch = matchFromGroups(element, EXPERIENCE_DATE_GROUPS);
   const locationMatch = matchFromGroups(element, EXPERIENCE_LOCATION_GROUPS);
 
-  const companyValue = cleanText(
-    companyLinkMatch.element?.textContent ?? companyMatch.element?.textContent ?? undefined
-  ) ?? companyMatch.value;
+  let companyValue =
+    cleanText(
+      companyLinkMatch.element?.textContent ?? companyMatch.element?.textContent ?? undefined
+    ) ?? companyMatch.value;
+
+  // Clean company name by removing employment type suffixes
+  if (companyValue) {
+    companyValue = companyValue
+      .replace(/\s*·\s*(Self-employed|Full-time|Part-time|Contract|Freelance|Internship).*$/i, "")
+      .trim();
+  }
 
   const { endDate } = parseDateRangeParts(dateRangeMatch.value);
   const inferredCurrent = !endDate || /present/i.test(dateRangeMatch.value ?? "");
 
   const companyUrlValue = companyLinkMatch.element?.getAttribute?.("href") ?? undefined;
 
-  const companyElement = (companyLinkMatch.element as Element | undefined) ?? (companyMatch.element ?? undefined);
+  const companyElement =
+    (companyLinkMatch.element as Element | undefined) ?? companyMatch.element ?? undefined;
   const companyTier = companyLinkMatch.element ? companyLinkMatch.tier : companyMatch.tier;
-  const companyTierIndex = companyLinkMatch.element ? companyLinkMatch.tierIndex : companyMatch.tierIndex;
-  const companySelectorIndex = companyLinkMatch.element ? companyLinkMatch.selectorIndex : companyMatch.selectorIndex;
+  const companyTierIndex = companyLinkMatch.element
+    ? companyLinkMatch.tierIndex
+    : companyMatch.tierIndex;
+  const companySelectorIndex = companyLinkMatch.element
+    ? companyLinkMatch.selectorIndex
+    : companyMatch.selectorIndex;
   const companyConfidence = companyLinkMatch.element
     ? computeConfidence(companyLinkMatch.tierIndex ?? 0, companyLinkMatch.selectorIndex ?? 0)
     : companyMatch.element
-    ? computeConfidence(companyMatch.tierIndex ?? 0, companyMatch.selectorIndex ?? 0)
-    : 0.1;
+      ? computeConfidence(companyMatch.tierIndex ?? 0, companyMatch.selectorIndex ?? 0)
+      : 0.1;
   const companyNotes = [...companyLinkMatch.notes, ...companyMatch.notes];
 
   const companyField: StagehandFieldMatch = {
     field: "company",
     value: companyValue,
-    matchedSelector: companyLinkMatch.element ? companyLinkMatch.matchedSelector : companyMatch.matchedSelector,
-    triedSelectors: Array.from(new Set([...companyLinkMatch.triedSelectors, ...companyMatch.triedSelectors])),
+    matchedSelector: companyLinkMatch.element
+      ? companyLinkMatch.matchedSelector
+      : companyMatch.matchedSelector,
+    triedSelectors: Array.from(
+      new Set([...companyLinkMatch.triedSelectors, ...companyMatch.triedSelectors])
+    ),
     tier: companyTier,
     tierIndex: companyTierIndex,
     selectorIndex: companySelectorIndex,
@@ -510,7 +576,9 @@ const analyzeExperienceElement = (element: Element, index: number): StagehandExp
     tierIndex: titleMatch.tierIndex,
     selectorIndex: titleMatch.selectorIndex,
     path: computeDomPath(titleMatch.element ?? undefined),
-    confidence: titleMatch.element ? computeConfidence(titleMatch.tierIndex ?? 0, titleMatch.selectorIndex ?? 0) : 0.1,
+    confidence: titleMatch.element
+      ? computeConfidence(titleMatch.tierIndex ?? 0, titleMatch.selectorIndex ?? 0)
+      : 0.1,
     notes: titleMatch.notes
   };
 
@@ -523,7 +591,9 @@ const analyzeExperienceElement = (element: Element, index: number): StagehandExp
     tierIndex: dateRangeMatch.tierIndex,
     selectorIndex: dateRangeMatch.selectorIndex,
     path: computeDomPath(dateRangeMatch.element ?? undefined),
-    confidence: dateRangeMatch.element ? computeConfidence(dateRangeMatch.tierIndex ?? 0, dateRangeMatch.selectorIndex ?? 0) : 0.1,
+    confidence: dateRangeMatch.element
+      ? computeConfidence(dateRangeMatch.tierIndex ?? 0, dateRangeMatch.selectorIndex ?? 0)
+      : 0.1,
     notes: dateRangeMatch.notes
   };
 
@@ -536,7 +606,9 @@ const analyzeExperienceElement = (element: Element, index: number): StagehandExp
     tierIndex: locationMatch.tierIndex,
     selectorIndex: locationMatch.selectorIndex,
     path: computeDomPath(locationMatch.element ?? undefined),
-    confidence: locationMatch.element ? computeConfidence(locationMatch.tierIndex ?? 0, locationMatch.selectorIndex ?? 0) : 0.1,
+    confidence: locationMatch.element
+      ? computeConfidence(locationMatch.tierIndex ?? 0, locationMatch.selectorIndex ?? 0)
+      : 0.1,
     notes: locationMatch.notes
   };
 
@@ -550,7 +622,9 @@ const analyzeExperienceElement = (element: Element, index: number): StagehandExp
     selectorIndex: companyLinkMatch.selectorIndex,
     path: computeDomPath(companyLinkMatch.element ?? undefined),
     attribute: companyLinkMatch.attribute,
-    confidence: companyLinkMatch.element ? computeConfidence(companyLinkMatch.tierIndex ?? 0, companyLinkMatch.selectorIndex ?? 0) : 0.1,
+    confidence: companyLinkMatch.element
+      ? computeConfidence(companyLinkMatch.tierIndex ?? 0, companyLinkMatch.selectorIndex ?? 0)
+      : 0.1,
     notes: companyLinkMatch.notes
   };
 
@@ -606,7 +680,8 @@ export class LinkedInProfileStagehandAnalyzer {
       warnings.push("No experience entries detected");
     }
 
-    const currentExperience = experiences.find((experience) => experience.isCurrent) ?? experiences[0];
+    const currentExperience =
+      experiences.find((experience) => experience.isCurrent) ?? experiences[0];
     const currentExperienceIndex = currentExperience?.index;
 
     const fieldMatches: StagehandFieldMatch[] = [
@@ -619,7 +694,9 @@ export class LinkedInProfileStagehandAnalyzer {
         tierIndex: nameMatch.tierIndex,
         selectorIndex: nameMatch.selectorIndex,
         path: computeDomPath(nameMatch.element ?? undefined),
-        confidence: nameMatch.element ? computeConfidence(nameMatch.tierIndex ?? 0, nameMatch.selectorIndex ?? 0) : 0.1,
+        confidence: nameMatch.element
+          ? computeConfidence(nameMatch.tierIndex ?? 0, nameMatch.selectorIndex ?? 0)
+          : 0.1,
         notes: nameMatch.notes
       },
       {
@@ -631,7 +708,9 @@ export class LinkedInProfileStagehandAnalyzer {
         tierIndex: headlineMatch.tierIndex,
         selectorIndex: headlineMatch.selectorIndex,
         path: computeDomPath(headlineMatch.element ?? undefined),
-        confidence: headlineMatch.element ? computeConfidence(headlineMatch.tierIndex ?? 0, headlineMatch.selectorIndex ?? 0) : 0.1,
+        confidence: headlineMatch.element
+          ? computeConfidence(headlineMatch.tierIndex ?? 0, headlineMatch.selectorIndex ?? 0)
+          : 0.1,
         notes: headlineMatch.notes
       },
       {
@@ -643,7 +722,9 @@ export class LinkedInProfileStagehandAnalyzer {
         tierIndex: locationMatch.tierIndex,
         selectorIndex: locationMatch.selectorIndex,
         path: computeDomPath(locationMatch.element ?? undefined),
-        confidence: locationMatch.element ? computeConfidence(locationMatch.tierIndex ?? 0, locationMatch.selectorIndex ?? 0) : 0.1,
+        confidence: locationMatch.element
+          ? computeConfidence(locationMatch.tierIndex ?? 0, locationMatch.selectorIndex ?? 0)
+          : 0.1,
         notes: locationMatch.notes
       },
       {
@@ -657,7 +738,10 @@ export class LinkedInProfileStagehandAnalyzer {
         path: computeDomPath(profileImageMatch.element ?? undefined),
         attribute: profileImageMatch.attribute,
         confidence: profileImageMatch.element
-          ? computeConfidence(profileImageMatch.tierIndex ?? 0, profileImageMatch.selectorIndex ?? 0)
+          ? computeConfidence(
+              profileImageMatch.tierIndex ?? 0,
+              profileImageMatch.selectorIndex ?? 0
+            )
           : 0.1,
         notes: profileImageMatch.notes
       }
