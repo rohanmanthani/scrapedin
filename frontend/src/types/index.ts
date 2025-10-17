@@ -90,11 +90,7 @@ export type TaskStatus =
   | "failed"
   | "cancelled";
 
-export type SearchTaskType =
-  | "sales_navigator"
-  | "account_followers"
-  | "post_engagement"
-  | "profile_scrape";
+export type SearchTaskType = "sales_navigator" | "post_engagement" | "profile_scrape";
 
 export interface SearchTaskPayload {
   icpPrompt?: string;

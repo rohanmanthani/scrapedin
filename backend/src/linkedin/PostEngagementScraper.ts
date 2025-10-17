@@ -58,7 +58,7 @@ const REACTION_FALLBACK_SELECTORS = [
 ];
 
 const COMMENT_ROW_SELECTOR =
-  "article.comments-comment-item, li.comments-comments-list__comment-item, div.comments-comment-item, li[data-id^='urn:li:comment:'], article.feed-shared-update-v2__comment-item";
+  "article.comments-comment-entity, article.comments-comment-item, li.comments-comments-list__comment-item, div.comments-comment-item, li[data-id^='urn:li:comment:'], article.feed-shared-update-v2__comment-item";
 const COMMENT_LOAD_MORE_SELECTORS = [
   "button.comments-comments-list__load-more-comments-button",
   "button.comments-comments-list__load-previous-comments-button",
@@ -112,15 +112,32 @@ export class PostEngagementScraper extends BaseLinkedInClient {
 
         if (input.scrapeCommenters) {
           const commenters = await this.collectCommenters(page, normalizedPostUrl, limit);
+          logger.info(
+            {
+              postUrl: normalizedPostUrl,
+              commentersFound: commenters.length,
+              commentersWithUrls: commenters.filter((c) => c.profileUrl).length,
+              sampleCommenters: commenters.slice(0, 3).map((c) => ({
+                name: c.fullName,
+                url: c.profileUrl,
+                headline: c.headline
+              }))
+            },
+            "Extracted commenters from post, starting enrichment"
+          );
           const enrichedCommenters = await this.enrichEngagementProfiles(context, commenters);
+          logger.info(
+            {
+              postUrl: normalizedPostUrl,
+              totalCommenters: commenters.length,
+              enrichedCount: enrichedCommenters.length
+            },
+            "Completed commenter enrichment"
+          );
           this.mergeLeads(
             aggregated,
             dedupe,
             this.mapCommentProfiles(enrichedCommenters, input, normalizedPostUrl)
-          );
-          logger.info(
-            { postUrl: normalizedPostUrl, commenters: commenters.length },
-            "Collected post commenters"
           );
         }
       } catch (error) {
@@ -198,6 +215,10 @@ export class PostEngagementScraper extends BaseLinkedInClient {
 
       if (!profile.profileUrl || !this.needsProfileEnrichment(profile)) {
         profileMap.set(i, profile);
+        logger.debug(
+          { profileUrl: profile.profileUrl, hasUrl: !!profile.profileUrl },
+          "Profile skipped - no URL or doesn't need enrichment"
+        );
         continue;
       }
 
@@ -207,6 +228,7 @@ export class PostEngagementScraper extends BaseLinkedInClient {
       if (cached === null && this.profileDetailCache.has(cacheKey)) {
         // Previously failed to fetch, use as-is
         profileMap.set(i, profile);
+        logger.debug({ profileUrl: profile.profileUrl }, "Profile skipped - previously failed");
         continue;
       }
 
@@ -225,10 +247,12 @@ export class PostEngagementScraper extends BaseLinkedInClient {
           email: cached.email ?? profile.email,
           enrichedDetails: cached
         });
+        logger.debug({ profileUrl: profile.profileUrl }, "Profile using cached data");
         continue;
       }
 
       // Needs to be fetched
+      logger.debug({ profileUrl: profile.profileUrl }, "Profile queued for enrichment");
       profilesToEnrich.push({ profile, index: i });
     }
 
@@ -250,13 +274,28 @@ export class PostEngagementScraper extends BaseLinkedInClient {
           const cacheKey = profile.profileUrl!.toLowerCase();
 
           try {
+            logger.info({ profileUrl: profile.profileUrl }, "VISITING profile page for enrichment");
             const details = await this.fetchProfileDetails(context, profile.profileUrl!);
             this.profileDetailCache.set(cacheKey, details);
 
             if (!details) {
+              logger.warn(
+                { profileUrl: profile.profileUrl },
+                "Profile enrichment returned no details"
+              );
               profileMap.set(index, profile);
               return;
             }
+
+            logger.info(
+              {
+                profileUrl: profile.profileUrl,
+                extractedName: details.fullName,
+                extractedTitle: details.currentTitle,
+                extractedCompany: details.currentCompany
+              },
+              "Successfully enriched profile"
+            );
 
             profileMap.set(index, {
               ...profile,
@@ -403,7 +442,8 @@ export class PostEngagementScraper extends BaseLinkedInClient {
       currentTitle: getStagehandField("currentTitle") || legacyDetails.currentTitle,
       currentCompany: getStagehandField("currentCompany") || legacyDetails.currentCompany,
       currentCompanyUrl: getStagehandField("currentCompanyUrl") || legacyDetails.currentCompanyUrl,
-      experiences: stagehandExperiences.length > 0 ? stagehandExperiences : legacyDetails.experiences,
+      experiences:
+        stagehandExperiences.length > 0 ? stagehandExperiences : legacyDetails.experiences,
       currentCompanyStartedAt: legacyDetails.currentCompanyStartedAt,
       email: legacyDetails.email,
       phoneNumbers: legacyDetails.phoneNumbers,
@@ -754,7 +794,19 @@ export class PostEngagementScraper extends BaseLinkedInClient {
       origin: postUrl
     });
 
-    logger.info({ postUrl, commenterCount: extracted.length }, "Extracted commenters from post");
+    logger.info(
+      {
+        postUrl,
+        commenterCount: extracted.length,
+        commenters: extracted.map((c) => ({
+          name: c.fullName,
+          url: c.profileUrl,
+          headline: c.headline,
+          hasUrl: !!c.profileUrl
+        }))
+      },
+      "Extracted commenters from post with details"
+    );
 
     if (extracted.length === 0) {
       logger.warn(
@@ -1074,6 +1126,7 @@ export class PostEngagementScraper extends BaseLinkedInClient {
 }
 
 const COMMENT_SELECTORS_FOR_LENGTH = [
+  "article.comments-comment-entity",
   "article.comments-comment-item",
   "li.comments-comments-list__comment-item",
   "div.comments-comment-item"

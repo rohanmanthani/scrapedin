@@ -36,7 +36,7 @@ const statusVariants: Record<SearchTask["status"], "ok" | "error" | "warn" | "in
     cancelled: "error"
   };
 
-type CreateMode = "icp" | "accounts" | "posts" | "profiles";
+type CreateMode = "icp" | "posts" | "profiles";
 
 interface AutomationDashboardProps {
   onOpenSettings?: () => void;
@@ -138,9 +138,6 @@ export const AutomationDashboard = ({
 
   const [icpPrompt, setIcpPrompt] = useState("");
   const [icpCommandName, setIcpCommandName] = useState("");
-  const [accountsInput, setAccountsInput] = useState("");
-  const [accountsName, setAccountsName] = useState("");
-  const [accountsLeadList, setAccountsLeadList] = useState("");
   const [postsInput, setPostsInput] = useState("");
   const [postsName, setPostsName] = useState("");
   const [postsLeadList, setPostsLeadList] = useState("");
@@ -151,8 +148,6 @@ export const AutomationDashboard = ({
   const [profilesLeadList, setProfilesLeadList] = useState("");
 
   // Edit state for payload-based tasks
-  const [editAccountsInput, setEditAccountsInput] = useState("");
-  const [editAccountsLeadList, setEditAccountsLeadList] = useState("");
   const [editPostsInput, setEditPostsInput] = useState("");
   const [editPostsLeadList, setEditPostsLeadList] = useState("");
   const [editPostsScrapeReactions, setEditPostsScrapeReactions] = useState(true);
@@ -179,9 +174,6 @@ export const AutomationDashboard = ({
     setCreateError(null);
     setIcpPrompt("");
     setIcpCommandName("");
-    setAccountsInput("");
-    setAccountsName("");
-    setAccountsLeadList("");
     setPostsInput("");
     setPostsName("");
     setPostsLeadList("");
@@ -225,14 +217,6 @@ export const AutomationDashboard = ({
     }
 
     // Initialize edit state for payload-based tasks
-    if (editingTask.type === "account_followers" && editingTask.payload) {
-      const urls = editingTask.payload.accountUrls ?? [];
-      setEditAccountsInput(urls.join("\n"));
-      setEditAccountsLeadList(editingTask.payload.targetLeadListName ?? "");
-      setEditError(null);
-      return;
-    }
-
     if (editingTask.type === "post_engagement" && editingTask.payload) {
       const urls = editingTask.payload.postUrls ?? [];
       setEditPostsInput(urls.join("\n"));
@@ -405,8 +389,6 @@ export const AutomationDashboard = ({
   const getTaskTypeLabel = (task: SearchTask): string => {
     const type = resolveTaskType(task);
     switch (type) {
-      case "account_followers":
-        return "Account follower scrape";
       case "post_engagement":
         return "Post engagement scrape";
       case "profile_scrape":
@@ -445,21 +427,6 @@ export const AutomationDashboard = ({
         parts.push("Preset ready for review");
       }
       return parts.join(" • ");
-    }
-
-    if (type === "account_followers") {
-      const accounts = payload.accountUrls ?? [];
-      if (accounts.length) {
-        parts.push(`${accounts.length} account${accounts.length === 1 ? "" : "s"}`);
-        const preview = formatListPreview(accounts);
-        if (preview) {
-          parts.push(preview);
-        }
-      }
-      if (payload.targetLeadListName) {
-        parts.push(`Lead list: ${payload.targetLeadListName}`);
-      }
-      return parts.length ? parts.join(" • ") : "No accounts added yet";
     }
 
     if (type === "post_engagement") {
@@ -609,25 +576,6 @@ export const AutomationDashboard = ({
     onError: (error: unknown) => {
       setCreateError(
         error instanceof Error ? error.message : "Failed to generate automation from ICP"
-      );
-    }
-  });
-
-  const createAccountsMutation = useMutation({
-    mutationFn: async (payload: { accountUrls: string[]; name: string; leadListName?: string }) => {
-      const { data } = await apiClient.post<SearchTask>("/tasks/accounts", payload);
-      return data;
-    },
-    onSuccess: (task) => {
-      setBannerMessage(
-        `Draft account follower task "${task.name ?? "Account Followers"}" created.`
-      );
-      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      handleCreateModalClose();
-    },
-    onError: (error: unknown) => {
-      setCreateError(
-        error instanceof Error ? error.message : "Failed to create account follower task"
       );
     }
   });
@@ -1057,27 +1005,7 @@ export const AutomationDashboard = ({
       setEditError(null);
 
       try {
-        if (editingTask.type === "account_followers") {
-          const urls = editAccountsInput
-            .split(/[\n,]/)
-            .map((url) => url.trim())
-            .filter(Boolean);
-
-          if (urls.length === 0) {
-            setEditError("Please provide at least one account URL");
-            return;
-          }
-
-          await updateTask.mutateAsync({
-            taskId: editingTask.id,
-            payload: {
-              payload: {
-                accountUrls: urls,
-                targetLeadListName: editAccountsLeadList.trim() || undefined
-              }
-            }
-          });
-        } else if (editingTask.type === "post_engagement") {
+        if (editingTask.type === "post_engagement") {
           const urls = editPostsInput
             .split(/[\n,]/)
             .map((url) => url.trim())
@@ -1131,8 +1059,6 @@ export const AutomationDashboard = ({
     },
     [
       editingTask,
-      editAccountsInput,
-      editAccountsLeadList,
       editPostsInput,
       editPostsLeadList,
       editPostsScrapeReactions,
@@ -1171,29 +1097,6 @@ export const AutomationDashboard = ({
       createIcpMutation.mutate({ prompt, commandName });
     },
     [icpPrompt, icpCommandName, createIcpMutation]
-  );
-
-  const handleSubmitCreateAccounts = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      setCreateError(null);
-      const name = accountsName.trim();
-      if (!name) {
-        setCreateError("Name your automation to continue.");
-        return;
-      }
-      const urls = parseListInput(accountsInput);
-      if (urls.length === 0) {
-        setCreateError("Add at least one LinkedIn company URL.");
-        return;
-      }
-      createAccountsMutation.mutate({
-        accountUrls: urls,
-        name,
-        leadListName: accountsLeadList.trim() || undefined
-      });
-    },
-    [accountsInput, accountsName, accountsLeadList, createAccountsMutation, parseListInput]
   );
 
   const handleSubmitCreatePosts = useCallback(
@@ -1254,13 +1157,11 @@ export const AutomationDashboard = ({
   const isCreateLoading =
     createMode === "icp"
       ? createIcpMutation.isLoading
-      : createMode === "accounts"
-        ? createAccountsMutation.isLoading
-        : createMode === "posts"
-          ? createPostsMutation.isLoading
-          : createMode === "profiles"
-            ? createProfilesMutation.isLoading
-            : false;
+      : createMode === "posts"
+        ? createPostsMutation.isLoading
+        : createMode === "profiles"
+          ? createProfilesMutation.isLoading
+          : false;
 
   return (
     <div className="stack">
@@ -1332,7 +1233,6 @@ export const AutomationDashboard = ({
                   const taskType = resolveTaskType(task);
                   const isStartableTask =
                     taskType === "sales_navigator" ||
-                    taskType === "account_followers" ||
                     taskType === "post_engagement" ||
                     taskType === "profile_scrape";
                   const taskName = task.name ?? task.preset?.name ?? "Untitled";
@@ -1512,16 +1412,6 @@ export const AutomationDashboard = ({
                 onClick={() => {
                   closeCreateMenu();
                   resetCreateState();
-                  setCreateMode("accounts");
-                }}
-              >
-                Create by Accounts
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  closeCreateMenu();
-                  resetCreateState();
                   setCreateMode("posts");
                 }}
               >
@@ -1566,39 +1456,16 @@ export const AutomationDashboard = ({
                 <header className="modal__header">
                   <h2>Edit {editingTask.name ?? "Task"}</h2>
                   <p className="muted">
-                    {editingTask.type === "account_followers"
-                      ? "Update account URLs and settings"
-                      : editingTask.type === "post_engagement"
-                        ? "Update post URLs and engagement settings"
-                        : editingTask.type === "profile_scrape"
-                          ? "Update profile URLs and settings"
-                          : `Fine-tune keywords for ${editingTask.preset?.name ?? "this preset"}`}
+                    {editingTask.type === "post_engagement"
+                      ? "Update post URLs and engagement settings"
+                      : editingTask.type === "profile_scrape"
+                        ? "Update profile URLs and settings"
+                        : `Fine-tune keywords for ${editingTask.preset?.name ?? "this preset"}`}
                   </p>
                 </header>
                 <div className="modal__body">
                   {editError ? <p className="form-error">{editError}</p> : null}
-                  {editingTask.type === "account_followers" ? (
-                    <div className="input-group">
-                      <label htmlFor="edit-accounts">Account URLs (one per line)</label>
-                      <textarea
-                        id="edit-accounts"
-                        value={editAccountsInput}
-                        onChange={(event) => setEditAccountsInput(event.target.value)}
-                        rows={10}
-                        placeholder="https://www.linkedin.com/company/example-one&#10;https://www.linkedin.com/company/example-two"
-                      />
-                      <small className="muted">Separate each company by a new line or comma.</small>
-                      <div className="input-group" style={{ marginTop: "1rem" }}>
-                        <label htmlFor="edit-accounts-leadlist">Target lead list (optional)</label>
-                        <input
-                          id="edit-accounts-leadlist"
-                          value={editAccountsLeadList}
-                          onChange={(event) => setEditAccountsLeadList(event.target.value)}
-                          placeholder="e.g., My Lead List"
-                        />
-                      </div>
-                    </div>
-                  ) : editingTask.type === "post_engagement" ? (
+                  {editingTask.type === "post_engagement" ? (
                     <div>
                       <div className="input-group">
                         <label htmlFor="edit-posts">Post URLs (one per line)</label>
@@ -2176,12 +2043,7 @@ export const AutomationDashboard = ({
                   description =
                     "Use natural language to describe your ideal customer profile. We'll expand it into filters and create draft automations.";
                   break;
-                case "accounts":
-                  submitHandler = handleSubmitCreateAccounts;
-                  title = "Create Automation from Accounts";
-                  description =
-                    "Paste the LinkedIn company URLs you care about. We'll prepare a draft follower scrape for review.";
-                  break;
+
                 case "posts":
                   submitHandler = handleSubmitCreatePosts;
                   title = "Create Automation from Posts";
@@ -2251,48 +2113,7 @@ export const AutomationDashboard = ({
                             </div>
                           );
                         }
-                        if (createMode === "accounts") {
-                          return (
-                            <div className="stack">
-                              <div className="input-group">
-                                <label htmlFor="accounts-name">
-                                  Automation name <span className="required-indicator">*</span>
-                                </label>
-                                <input
-                                  id="accounts-name"
-                                  value={accountsName}
-                                  onChange={(event) => setAccountsName(event.target.value)}
-                                  placeholder="e.g., Monitor competitor followers"
-                                  required
-                                />
-                              </div>
-                              <div className="input-group">
-                                <label htmlFor="accounts-input">LinkedIn company URLs</label>
-                                <textarea
-                                  id="accounts-input"
-                                  rows={6}
-                                  value={accountsInput}
-                                  onChange={(event) => setAccountsInput(event.target.value)}
-                                  placeholder="https://www.linkedin.com/company/example-one\nhttps://www.linkedin.com/company/example-two"
-                                />
-                                <small className="muted">
-                                  Separate each company by a new line or comma.
-                                </small>
-                              </div>
-                              <div className="input-group">
-                                <label htmlFor="accounts-leadlist">
-                                  Target lead list (optional)
-                                </label>
-                                <input
-                                  id="accounts-leadlist"
-                                  value={accountsLeadList}
-                                  onChange={(event) => setAccountsLeadList(event.target.value)}
-                                  placeholder="Followers - Q4 campaign"
-                                />
-                              </div>
-                            </div>
-                          );
-                        }
+
                         if (createMode === "posts") {
                           return (
                             <div className="stack">

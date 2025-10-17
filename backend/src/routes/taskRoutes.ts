@@ -21,32 +21,6 @@ export const createTaskRouter = (
   );
 
   router.post(
-    "/accounts",
-    asyncHandler(async (req, res) => {
-      const { accountUrls, name, leadListName } = req.body ?? {};
-      if (!Array.isArray(accountUrls) || accountUrls.length === 0) {
-        res.status(400).json({ error: "accountUrls must be a non-empty array" });
-        return;
-      }
-      const trimmed = accountUrls
-        .map((url: unknown) => (typeof url === "string" ? url.trim() : ""))
-        .filter((url: string) => url.length > 0);
-      if (trimmed.length === 0) {
-        res.status(400).json({ error: "accountUrls must include at least one valid URL" });
-        return;
-      }
-      const settings = await settingsService.get();
-      const task = await taskService.createAccountsTask(settings, {
-        name,
-        accountUrls: trimmed,
-        targetLeadListName:
-          typeof leadListName === "string" ? leadListName.trim() || undefined : undefined
-      });
-      res.status(201).json(task);
-    })
-  );
-
-  router.post(
     "/posts",
     asyncHandler(async (req, res) => {
       const { postUrls, scrapeReactions, scrapeCommenters, name, leadListName } = req.body ?? {};

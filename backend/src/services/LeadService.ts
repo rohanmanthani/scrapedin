@@ -114,7 +114,8 @@ export class LeadService {
       return experiences
         .map((experience) => {
           const range =
-            experience.dateRangeText ?? [experience.startDate, experience.endDate].filter(Boolean).join(" - ");
+            experience.dateRangeText ??
+            [experience.startDate, experience.endDate].filter(Boolean).join(" - ");
           const pieces = [
             [experience.title, experience.company].filter(Boolean).join(" @ "),
             experience.location,
@@ -143,6 +144,7 @@ export class LeadService {
       },
       { header: "currentTitle", value: (lead) => lead.title ?? "" },
       { header: "currentCompany", value: (lead) => lead.companyName ?? "" },
+      { header: "companyLinkedInUrl", value: (lead) => lead.companyUrl ?? "" },
       {
         header: "experiences",
         value: (lead) => formatExperiences(collectExperiences(lead))

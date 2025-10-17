@@ -81,15 +81,18 @@ export interface SearchPreset {
   pageLimit?: number;
 }
 
-export type TaskStatus = "draft" | "pending" | "queued" | "running" | "succeeded" | "failed" | "cancelled";
+export type TaskStatus =
+  | "draft"
+  | "pending"
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "cancelled";
 
 export type AutomationModeId = "ultra_safe" | "safe" | "balanced" | "aggressive";
 
-export type SearchTaskType =
-  | "sales_navigator"
-  | "account_followers"
-  | "post_engagement"
-  | "profile_scrape";
+export type SearchTaskType = "sales_navigator" | "post_engagement" | "profile_scrape";
 
 export interface SearchTaskPayload {
   icpPrompt?: string;

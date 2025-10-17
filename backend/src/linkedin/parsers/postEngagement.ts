@@ -247,6 +247,7 @@ export function extractComments(
   };
 
   const COMMENT_SELECTORS = [
+    "article.comments-comment-entity",
     "article.comments-comment-item",
     "li.comments-comments-list__comment-item",
     "div.comments-comment-item",
@@ -262,6 +263,7 @@ export function extractComments(
   ];
 
   const COMMENT_NAME_SELECTORS = [
+    ".comments-comment-meta__description-title",
     ".comments-post-meta__name-text",
     ".comments-comment-item__display-name",
     ".feed-shared-comment__name",
@@ -270,6 +272,7 @@ export function extractComments(
   ];
 
   const HEADLINE_SELECTORS = [
+    ".comments-comment-meta__description-subtitle",
     ".comments-post-meta__headline",
     ".comments-comment-item__headline",
     ".feed-shared-comment__headline",
@@ -286,6 +289,8 @@ export function extractComments(
   ];
 
   const ANCHOR_SELECTORS = [
+    "a.comments-comment-meta__description-container",
+    "a.comments-comment-meta__image-link",
     "a[href*='/in/']",
     "a.comments-comment-item__profile-link",
     "a.artdeco-entity-lockup__subtitle",

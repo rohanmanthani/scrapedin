@@ -3,7 +3,7 @@ import { appConfig } from "../config.js";
 import { logger } from "../logger.js";
 import type { AutomationSettings, SearchTask, SearchTaskType } from "../types.js";
 import { LinkedInNavigatorClient } from "../linkedin/LinkedInNavigatorClient.js";
-import { AccountFollowersScraper } from "../linkedin/AccountFollowersScraper.js";
+
 import { PostEngagementScraper } from "../linkedin/PostEngagementScraper.js";
 import { AutomationSettingsService } from "../services/AutomationSettingsService.js";
 import { SearchTaskService } from "../services/SearchTaskService.js";
@@ -25,7 +25,6 @@ const isWithinQuietHours = (settings: AutomationSettings, now = new Date()): boo
 
 const SUPPORTED_TASK_TYPES = new Set<SearchTaskType>([
   "sales_navigator",
-  "account_followers",
   "post_engagement",
   "profile_scrape"
 ]);
@@ -131,7 +130,10 @@ export class AutomationController {
     void this.tick(nextOptions);
   }
 
-  private mergeTickOptions(current: TickOptions | undefined, incoming?: TickOptions): TickOptions | undefined {
+  private mergeTickOptions(
+    current: TickOptions | undefined,
+    incoming?: TickOptions
+  ): TickOptions | undefined {
     if (!current && !incoming) {
       return undefined;
     }
@@ -165,15 +167,25 @@ export class AutomationController {
       }
 
       const tasks = await this.taskService.list();
-      const successfulToday = tasks.filter((task) => task.status === "succeeded" && isToday(task.completedAt)).length;
-      if (!options?.bypassDailyLimits && settings.dailySearchLimit > 0 && successfulToday >= settings.dailySearchLimit) {
+      const successfulToday = tasks.filter(
+        (task) => task.status === "succeeded" && isToday(task.completedAt)
+      ).length;
+      if (
+        !options?.bypassDailyLimits &&
+        settings.dailySearchLimit > 0 &&
+        successfulToday >= settings.dailySearchLimit
+      ) {
         logger.debug("Daily search limit reached; skipping automation tick");
         return;
       }
 
       const leads = await this.leadService.list();
       const leadsToday = leads.filter((lead) => isToday(lead.capturedAt)).length;
-      if (!options?.bypassDailyLimits && settings.dailyLeadCap > 0 && leadsToday >= settings.dailyLeadCap) {
+      if (
+        !options?.bypassDailyLimits &&
+        settings.dailyLeadCap > 0 &&
+        leadsToday >= settings.dailyLeadCap
+      ) {
         logger.debug("Daily lead cap reached; skipping automation tick");
         return;
       }
@@ -228,9 +240,6 @@ export class AutomationController {
       case "sales_navigator":
         await this.executeSalesNavigatorTask(task);
         break;
-      case "account_followers":
-        await this.executeAccountFollowersTask(task);
-        break;
       case "post_engagement":
         await this.executePostEngagementTask(task);
         break;
@@ -238,7 +247,7 @@ export class AutomationController {
         await this.executeProfileScrapeTask(task);
         break;
       default:
-        logger.warn({ taskId: task.id, type }, "Unhandled task type encountered by automation controller");
+        logger.warn({ taskId: task.id, type }, "Unsupported task type");
     }
   }
 
@@ -259,7 +268,9 @@ export class AutomationController {
     }
 
     const client = new LinkedInNavigatorClient(task.settingsSnapshot);
-    await this.taskService.updateStatus(task.id, "running", { startedAt: new Date().toISOString() });
+    await this.taskService.updateStatus(task.id, "running", {
+      startedAt: new Date().toISOString()
+    });
 
     try {
       const leads = await client.runSearch(preset, task.name);
@@ -277,47 +288,6 @@ export class AutomationController {
       });
     } finally {
       await client.dispose();
-    }
-  }
-
-  private async executeAccountFollowersTask(task: SearchTask): Promise<void> {
-    const payload = task.payload ?? {};
-    const accountUrls = payload.accountUrls ?? [];
-    if (!accountUrls.length) {
-      logger.warn({ taskId: task.id }, "Account follower task missing URLs");
-      await this.taskService.updateStatus(task.id, "failed", {
-        errorMessage: "No account URLs provided",
-        completedAt: new Date().toISOString()
-      });
-      return;
-    }
-
-    const scraper = new AccountFollowersScraper(task.settingsSnapshot);
-    await this.taskService.updateStatus(task.id, "running", { startedAt: new Date().toISOString() });
-
-    try {
-      const leads = await scraper.scrape({
-        taskId: task.id,
-        taskName: task.name,
-        accountUrls,
-        leadListName: payload.targetLeadListName,
-        maxProfiles: this.settingsResultCap(task)
-      });
-      if (leads.length) {
-        await this.leadService.append(leads);
-      }
-      await this.taskService.updateStatus(task.id, "succeeded", {
-        completedAt: new Date().toISOString(),
-        resultLeadIds: leads.map((lead) => lead.id)
-      });
-    } catch (error) {
-      logger.error({ err: error, taskId: task.id }, "Account follower task failed");
-      await this.taskService.updateStatus(task.id, "failed", {
-        errorMessage: error instanceof Error ? error.message : String(error),
-        completedAt: new Date().toISOString()
-      });
-    } finally {
-      await scraper.dispose();
     }
   }
 
@@ -344,7 +314,9 @@ export class AutomationController {
     }
 
     const scraper = new PostEngagementScraper(task.settingsSnapshot);
-    await this.taskService.updateStatus(task.id, "running", { startedAt: new Date().toISOString() });
+    await this.taskService.updateStatus(task.id, "running", {
+      startedAt: new Date().toISOString()
+    });
 
     try {
       const leads = await scraper.scrape({
@@ -387,7 +359,9 @@ export class AutomationController {
     }
 
     const scraper = new ProfileListScraper(task.settingsSnapshot);
-    await this.taskService.updateStatus(task.id, "running", { startedAt: new Date().toISOString() });
+    await this.taskService.updateStatus(task.id, "running", {
+      startedAt: new Date().toISOString()
+    });
 
     try {
       const leads = await scraper.scrape({

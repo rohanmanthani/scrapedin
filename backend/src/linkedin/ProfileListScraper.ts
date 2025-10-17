@@ -13,6 +13,7 @@ interface ProfileListInput {
   taskName?: string;
   profileUrls: string[];
   leadListName?: string;
+  salesNavigatorUrls?: Map<string, string>; // Map of profileUrl -> salesNavigatorUrl
 }
 
 export class ProfileListScraper extends BaseLinkedInClient {
@@ -113,7 +114,14 @@ export class ProfileListScraper extends BaseLinkedInClient {
           continue;
         }
 
-        const lead = this.mapProfileToLead(input, normalizedUrl, details, capturedAt);
+        const salesNavigatorUrl = input.salesNavigatorUrls?.get(normalizedUrl);
+        const lead = this.mapProfileToLead(
+          input,
+          normalizedUrl,
+          details,
+          capturedAt,
+          salesNavigatorUrl
+        );
         results.push(lead);
       } catch (error) {
         logger.error({ err: error, profileUrl: rawUrl }, "Failed to scrape LinkedIn profile");
@@ -130,7 +138,8 @@ export class ProfileListScraper extends BaseLinkedInClient {
     input: ProfileListInput,
     profileUrl: string,
     details: ExtractedProfileDetails,
-    capturedAt: string
+    capturedAt: string,
+    salesNavigatorUrl?: string
   ): LeadRecord {
     const experiences = details.experiences ?? [];
     const currentExperience =
@@ -152,6 +161,7 @@ export class ProfileListScraper extends BaseLinkedInClient {
       id: `${input.taskId}:${profileUrl}`,
       presetId: input.taskId,
       profileUrl,
+      salesNavigatorUrl,
       fullName: details.fullName ?? "",
       headline: details.headline ?? undefined,
       title: details.currentTitle ?? currentExperience?.title ?? undefined,

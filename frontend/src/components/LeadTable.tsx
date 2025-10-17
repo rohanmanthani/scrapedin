@@ -10,7 +10,10 @@ const asRecord = (value: unknown): Record<string, unknown> | undefined => {
   return undefined;
 };
 
-const readString = (record: Record<string, unknown> | undefined, key: string): string | undefined => {
+const readString = (
+  record: Record<string, unknown> | undefined,
+  key: string
+): string | undefined => {
   if (!record) {
     return undefined;
   }
@@ -29,7 +32,10 @@ const truncate = (value: string, limit = 120): string => {
   return `${value.slice(0, limit).trim()}…`;
 };
 
-const getProfileImageUrl = (lead: LeadRecord, profileRecord: Record<string, unknown> | undefined) => {
+const getProfileImageUrl = (
+  lead: LeadRecord,
+  profileRecord: Record<string, unknown> | undefined
+) => {
   const rawProfileImageUrl = (lead.raw as LeadRecordRaw | undefined)?.profileImageUrl;
   if (typeof rawProfileImageUrl === "string" && rawProfileImageUrl.trim()) {
     return rawProfileImageUrl.trim();
@@ -217,6 +223,7 @@ export const LeadTable = () => {
                 <th>Phone Number</th>
                 <th>Current Title</th>
                 <th>Current Company</th>
+                <th>Company LinkedIn URL</th>
                 <th>Experiences</th>
                 <th />
               </tr>
@@ -289,9 +296,36 @@ export const LeadTable = () => {
                     <td>{lead.email ?? <span className="muted">—</span>}</td>
                     <td>{birthday ?? <span className="muted">—</span>}</td>
                     <td>{location ?? <span className="muted">—</span>}</td>
-                    <td>{phoneNumbers.length ? phoneNumbers.join(" | ") : <span className="muted">—</span>}</td>
+                    <td>
+                      {phoneNumbers.length ? (
+                        phoneNumbers.join(" | ")
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
                     <td>{lead.title ?? <span className="muted">—</span>}</td>
-                    <td>{lead.companyName ?? <span className="muted">—</span>}</td>
+                    <td>
+                      {lead.companyName ? (
+                        lead.companyUrl ? (
+                          <a href={lead.companyUrl} target="_blank" rel="noreferrer">
+                            {lead.companyName}
+                          </a>
+                        ) : (
+                          lead.companyName
+                        )
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td>
+                      {lead.companyUrl ? (
+                        <a href={lead.companyUrl} target="_blank" rel="noreferrer">
+                          {lead.companyUrl}
+                        </a>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
                     <td>
                       {experiences.length ? (
                         <ul className="table-list">
@@ -308,7 +342,9 @@ export const LeadTable = () => {
                                 {header && <div>{header}</div>}
                                 {details && <small className="muted">{details}</small>}
                                 {experience.description && (
-                                  <small className="muted">{truncate(experience.description)}</small>
+                                  <small className="muted">
+                                    {truncate(experience.description)}
+                                  </small>
                                 )}
                               </li>
                             );

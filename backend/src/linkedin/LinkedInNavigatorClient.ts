@@ -2,6 +2,7 @@ import { setTimeout as wait } from "node:timers/promises";
 import type { AutomationSettings, LeadRecord, SearchPreset } from "../types.js";
 import { logger } from "../logger.js";
 import { BaseLinkedInClient } from "./BaseLinkedInClient.js";
+import { ProfileListScraper } from "./ProfileListScraper.js";
 import type { Page } from "playwright";
 
 type ExtractedLead = {
@@ -26,7 +27,7 @@ export class LinkedInNavigatorClient extends BaseLinkedInClient {
   async runSearch(preset: SearchPreset, taskName?: string): Promise<LeadRecord[]> {
     const context = await this.getContext();
     const page = await context.newPage();
-    const leads: LeadRecord[] = [];
+    const salesNavLeads: ExtractedLead[] = [];
 
     try {
       const searchUrl = this.buildSearchUrl(preset);
@@ -34,29 +35,11 @@ export class LinkedInNavigatorClient extends BaseLinkedInClient {
       await this.openSearch(page, searchUrl);
       await this.randomDelay();
 
+      // Step 1: Extract all Sales Navigator lead URLs from search results
       const maxPages = preset.pageLimit ?? 3;
       for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
         const pageLeads = await this.extractLeadsFromPage(page);
-        for (const lead of pageLeads) {
-          if (!lead.profileUrl) {
-            continue;
-          }
-          leads.push({
-            id: `${preset.id}:${lead.profileUrl}`,
-            presetId: preset.id,
-            profileUrl: lead.profileUrl,
-            salesNavigatorUrl: lead.salesNavigatorUrl,
-            fullName: lead.fullName,
-            title: lead.title,
-            companyName: lead.companyName,
-            location: lead.location,
-            headline: lead.headline,
-            connectionDegree: lead.connectionDegree,
-            capturedAt: new Date().toISOString(),
-            raw: lead.raw,
-            taskName
-          });
-        }
+        salesNavLeads.push(...pageLeads);
 
         const nextButton = await page.$(
           "button[aria-label='Next'], button.artdeco-pagination__button--next"
@@ -69,12 +52,59 @@ export class LinkedInNavigatorClient extends BaseLinkedInClient {
         await this.randomDelay();
       }
 
+      await page.close();
+
+      logger.info(
+        { presetId: preset.id, count: salesNavLeads.length },
+        "Extracted Sales Navigator leads, now fetching LinkedIn profile URLs"
+      );
+
+      // Step 2: Extract LinkedIn profile URLs from Sales Navigator lead pages (batch process)
+      const profileUrls = await this.extractLinkedInProfileUrls(salesNavLeads);
+
+      logger.info(
+        { presetId: preset.id, count: profileUrls.length },
+        "Extracted LinkedIn profile URLs, now scraping profiles"
+      );
+
+      // Step 3: Build Sales Navigator URL mapping
+      const salesNavigatorUrls = new Map<string, string>();
+      for (const lead of salesNavLeads) {
+        if (lead.profileUrl && lead.salesNavigatorUrl) {
+          salesNavigatorUrls.set(lead.profileUrl, lead.salesNavigatorUrl);
+        }
+      }
+
+      // Step 4: Use ProfileListScraper to scrape the actual LinkedIn profiles
+      const profileScraper = new ProfileListScraper(this.settings);
+      const leads = await profileScraper.scrape({
+        taskId: preset.id,
+        taskName,
+        profileUrls,
+        leadListName: preset.name,
+        salesNavigatorUrls
+      });
+
+      // Merge Sales Navigator metadata with scraped profile data
+      const salesNavMap = new Map(
+        salesNavLeads.map((lead) => [lead.profileUrl?.toLowerCase(), lead])
+      );
+
+      for (const lead of leads) {
+        const salesNavLead = salesNavMap.get(lead.profileUrl?.toLowerCase() || "");
+        if (salesNavLead) {
+          lead.raw = {
+            ...lead.raw,
+            salesNavigatorData: salesNavLead.raw
+          };
+        }
+      }
+
+      await profileScraper.dispose();
       return leads;
     } catch (error) {
       logger.error({ err: error, presetId: preset.id }, "Failed to run Sales Navigator search");
       throw error;
-    } finally {
-      await page.close();
     }
   }
 
@@ -404,7 +434,7 @@ export class LinkedInNavigatorClient extends BaseLinkedInClient {
             )?.innerText ?? "";
           const title =
             item.querySelector<HTMLElement>(
-              "div[data-anonymize='headline'], span[data-anonymize='headline']"
+              "span[data-anonymize='title'], div[data-anonymize='headline']"
             )?.innerText ?? undefined;
           const companyName =
             item.querySelector<HTMLElement>("a[data-anonymize='company-name']")?.innerText ??
@@ -412,25 +442,29 @@ export class LinkedInNavigatorClient extends BaseLinkedInClient {
           const location =
             item.querySelector<HTMLElement>("span[data-anonymize='location']")?.innerText ??
             undefined;
-          const profileUrl =
-            item.querySelector<HTMLAnchorElement>("a[data-control-name='view_lead_panel_v2']")
-              ?.href ?? undefined;
-          const salesNavigatorUrl =
-            item.querySelector<HTMLAnchorElement>("a[data-control-name='view_lead_panel_v2']")
-              ?.href ?? undefined;
+
+          // Get Sales Navigator lead URL
+          const leadLink = item.querySelector<HTMLAnchorElement>(
+            "a[data-control-name='view_lead_panel_via_search_lead_name'], a[data-view-name='search-results-lead-name']"
+          );
+          const salesNavigatorUrl = leadLink?.href
+            ? new URL(leadLink.href, window.location.href).toString()
+            : undefined;
+
           const headline =
             item.querySelector<HTMLElement>("div[data-anonymize='headline']")?.innerText ??
             undefined;
           const connectionDegree =
-            item.querySelector<HTMLElement>("span[data-test-connection-status]")?.innerText ??
-            undefined;
+            item
+              .querySelector<HTMLElement>("span.artdeco-entity-lockup__degree")
+              ?.innerText?.replace(/[·\s]/g, "") ?? undefined;
 
           return {
             fullName,
             title,
             companyName,
             location,
-            profileUrl,
+            profileUrl: undefined, // Will be extracted from Sales Navigator lead page
             salesNavigatorUrl,
             headline,
             connectionDegree,
@@ -442,6 +476,99 @@ export class LinkedInNavigatorClient extends BaseLinkedInClient {
         })
     );
 
-    return leads.filter((lead) => lead.fullName);
+    return leads.filter((lead) => lead.fullName && lead.salesNavigatorUrl);
+  }
+
+  /**
+   * Extracts LinkedIn profile URLs from Sales Navigator lead pages.
+   * Processes up to 10 leads at a time to avoid overwhelming the browser.
+   */
+  private async extractLinkedInProfileUrls(salesNavLeads: ExtractedLead[]): Promise<string[]> {
+    const context = await this.getContext();
+    const profileUrls: string[] = [];
+    const batchSize = 10;
+
+    for (let i = 0; i < salesNavLeads.length; i += batchSize) {
+      const batch = salesNavLeads.slice(i, i + batchSize);
+      logger.debug(
+        { batchStart: i, batchSize: batch.length, total: salesNavLeads.length },
+        "Processing batch of Sales Navigator leads"
+      );
+
+      const batchPromises = batch.map(async (lead) => {
+        const page = await context.newPage();
+        try {
+          if (!lead.salesNavigatorUrl) {
+            return null;
+          }
+
+          await page.goto(lead.salesNavigatorUrl, {
+            waitUntil: "domcontentloaded",
+            timeout: this.settings.pageTimeoutMs
+          });
+
+          await this.randomDelay();
+
+          // Try multiple selectors to find the LinkedIn profile link
+          const profileUrl = await page.evaluate(() => {
+            // Look for "View profile on LinkedIn" link or similar
+            const selectors = [
+              'a[href*="linkedin.com/in/"]',
+              'a[data-control-name="view_linkedin"]',
+              'a[aria-label*="View"][aria-label*="LinkedIn"]',
+              'a[href*="/in/"][href*="linkedin.com"]'
+            ];
+
+            for (const selector of selectors) {
+              const link = document.querySelector<HTMLAnchorElement>(selector);
+              if (link?.href && link.href.includes("linkedin.com/in/")) {
+                return link.href;
+              }
+            }
+
+            // Fallback: search all links
+            const allLinks = Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href]"));
+            const profileLink = allLinks.find(
+              (link) => link.href.includes("linkedin.com/in/") && !link.href.includes("/sales/")
+            );
+            return profileLink?.href || null;
+          });
+
+          if (profileUrl) {
+            logger.debug(
+              { salesNavUrl: lead.salesNavigatorUrl, profileUrl },
+              "Extracted LinkedIn profile URL from Sales Navigator lead page"
+            );
+            // Store the profile URL back in the lead for later reference
+            lead.profileUrl = profileUrl;
+            return profileUrl;
+          } else {
+            logger.warn(
+              { salesNavUrl: lead.salesNavigatorUrl, name: lead.fullName },
+              "Could not find LinkedIn profile URL on Sales Navigator lead page"
+            );
+            return null;
+          }
+        } catch (error) {
+          logger.error(
+            { err: error, salesNavUrl: lead.salesNavigatorUrl },
+            "Failed to extract LinkedIn profile URL from Sales Navigator lead page"
+          );
+          return null;
+        } finally {
+          await page.close();
+        }
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+      profileUrls.push(...batchResults.filter((url): url is string => url !== null));
+
+      // Add delay between batches to avoid rate limiting
+      if (i + batchSize < salesNavLeads.length) {
+        await this.randomDelay();
+      }
+    }
+
+    return profileUrls;
   }
 }

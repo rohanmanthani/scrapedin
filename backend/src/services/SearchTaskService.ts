@@ -41,7 +41,11 @@ export class SearchTaskService {
     return this.withDefaults(await this.repository.saveTask(task));
   }
 
-  async queue(presetId: string, settings: AutomationSettings, scheduledFor?: Date): Promise<SearchTask> {
+  async queue(
+    presetId: string,
+    settings: AutomationSettings,
+    scheduledFor?: Date
+  ): Promise<SearchTask> {
     const task: SearchTask = {
       id: randomUUID(),
       type: "sales_navigator",
@@ -53,26 +57,6 @@ export class SearchTaskService {
       name: undefined,
       resultLeadIds: [],
       payload: undefined
-    };
-    return this.withDefaults(await this.repository.saveTask(task));
-  }
-
-  async createAccountsTask(
-    settings: AutomationSettings,
-    input: { name?: string; accountUrls: string[]; targetLeadListName?: string }
-  ): Promise<SearchTask> {
-    const task: SearchTask = {
-      id: randomUUID(),
-      type: "account_followers",
-      status: "draft",
-      createdAt: nowIso(),
-      name: input.name ?? "Account Followers",
-      resultLeadIds: [],
-      settingsSnapshot: settings,
-      payload: {
-        accountUrls: input.accountUrls,
-        targetLeadListName: input.targetLeadListName
-      }
     };
     return this.withDefaults(await this.repository.saveTask(task));
   }
@@ -139,7 +123,11 @@ export class SearchTaskService {
     return this.withDefaults(saved);
   }
 
-  async updateStatus(taskId: string, status: TaskStatus, updates: Partial<SearchTask> = {}): Promise<SearchTask> {
+  async updateStatus(
+    taskId: string,
+    status: TaskStatus,
+    updates: Partial<SearchTask> = {}
+  ): Promise<SearchTask> {
     const tasks = await this.repository.listTasks();
     const existing = tasks.find((task) => task.id === taskId);
     if (!existing) {
