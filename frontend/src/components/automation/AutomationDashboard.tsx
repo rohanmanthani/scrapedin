@@ -1125,7 +1125,6 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
               ) : (
                 linkedTasks.map((task) => {
                   const taskType = resolveTaskType(task);
-                  const isSalesNavigatorTask = taskType === "sales_navigator";
                   const isStartableTask =
                     taskType === "sales_navigator" ||
                     taskType === "account_followers" ||
@@ -1240,7 +1239,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                                     >
                                       Rename
                                     </button>
-                                    {isSalesNavigatorTask && task.preset ? (
+                                    {task.preset ? (
                                       <button
                                         type="button"
                                         onClick={() => {
@@ -1249,7 +1248,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                                         }}
                                         disabled={updatePreset.isLoading}
                                       >
-                                        Edit Filters
+                                        Edit
                                       </button>
                                     ) : null}
                                     <button
@@ -1350,7 +1349,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                 onSubmit={handleEditSubmit}
               >
                 <header className="modal__header">
-                  <h2>Edit Filters</h2>
+                  <h2>Edit</h2>
                   <p className="muted">
                     Fine-tune keywords for {editingPreset.name ?? editingTask?.name ?? "this preset"}.
                   </p>
