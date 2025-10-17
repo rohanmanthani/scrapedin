@@ -563,7 +563,7 @@ export class PostEngagementScraper extends BaseLinkedInClient {
             postUrl,
             leadListName: input.leadListName,
             reactionLabel: profile.reactionLabel,
-            profile
+            profile: profile as unknown as Record<string, unknown>
           },
           taskName: input.taskName
         };
@@ -601,7 +601,7 @@ export class PostEngagementScraper extends BaseLinkedInClient {
             postUrl,
             leadListName: input.leadListName,
             commentText: profile.commentText,
-            profile
+            profile: profile as unknown as Record<string, unknown>
           },
           taskName: input.taskName
         };

@@ -180,7 +180,7 @@ export class AccountFollowersScraper extends BaseLinkedInClient {
             source: "account_followers",
             accountUrl: meta.accountUrl,
             leadListName: input.leadListName,
-            profile
+            profile: profile as unknown as Record<string, unknown>
           },
           taskName: input.taskName
         };
