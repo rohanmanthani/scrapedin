@@ -7,6 +7,10 @@ import {
   type ExtractedEngagementProfile
 } from "./parsers/postEngagement.js";
 import { extractProfileDetails, type ExtractedProfileDetails } from "./parsers/profile.js";
+import {
+  LinkedInProfileStagehandAnalyzer,
+  type LinkedInStagehandAnalysis
+} from "./stagehand/LinkedInProfileStagehandAnalyzer.js";
 import type { BrowserContext, Page } from "playwright";
 
 interface PostEngagementInput {
@@ -70,6 +74,7 @@ const COMMENT_SEE_MORE_SELECTORS = [
 
 export class PostEngagementScraper extends BaseLinkedInClient {
   private readonly profileDetailCache = new Map<string, ExtractedProfileDetails | null>();
+  private readonly stagehandAnalyzer = new LinkedInProfileStagehandAnalyzer();
 
   constructor(settings: AutomationSettings) {
     super(settings);
@@ -217,7 +222,8 @@ export class PostEngagementScraper extends BaseLinkedInClient {
           currentCompany: cached.currentCompany ?? profile.currentCompany,
           currentCompanyUrl: cached.currentCompanyUrl ?? profile.currentCompanyUrl,
           profileImageUrl: cached.profileImageUrl ?? profile.profileImageUrl,
-          email: cached.email ?? profile.email
+          email: cached.email ?? profile.email,
+          enrichedDetails: cached
         });
         continue;
       }
@@ -265,7 +271,8 @@ export class PostEngagementScraper extends BaseLinkedInClient {
               currentCompany: details.currentCompany ?? profile.currentCompany,
               currentCompanyUrl: details.currentCompanyUrl ?? profile.currentCompanyUrl,
               profileImageUrl: details.profileImageUrl ?? profile.profileImageUrl,
-              email: details.email ?? profile.email
+              email: details.email ?? profile.email,
+              enrichedDetails: details
             });
           } catch (error) {
             logger.warn(
@@ -317,23 +324,24 @@ export class PostEngagementScraper extends BaseLinkedInClient {
       } catch {
         // Ignore if the main selector does not appear quickly; we'll attempt extraction anyway.
       }
-      await this.clickIfExists(page, [
-        "a[data-control-name='contact_see_more']",
-        "a[href*='contact-info']",
-        "button[aria-label*='Contact info']",
-        "button[aria-label*='Contact Info']",
-        "button[data-test-id='profile-topcard-contact-info']"
-      ]);
-      await this.randomDelay();
-      try {
-        await page.waitForSelector(
-          "section.pv-contact-info__contact-type, section[data-test-id='profile-contact-info'], div.artdeco-modal__content",
-          { timeout: Math.min(this.settings.pageTimeoutMs / 2, 6000) }
-        );
-      } catch {
-        // The contact info modal may not be available for all profiles.
-      }
-      const details = await page.evaluate(extractProfileDetails);
+      await this.openContactInfo(page);
+
+      const html = await page.content();
+      const stagehandAnalysis = this.stagehandAnalyzer.analyzeHtml(html);
+      const legacyDetails = await page.evaluate(extractProfileDetails);
+      const details = this.mergeProfileDetails(stagehandAnalysis, legacyDetails);
+
+      logger.debug(
+        {
+          profileUrl,
+          experiencesCount: details.experiences?.length ?? 0,
+          extractedTitle: details.currentTitle,
+          extractedCompany: details.currentCompany,
+          stagehandWarnings: stagehandAnalysis.metadata.warnings
+        },
+        "Enriched profile details for engagement lead"
+      );
+
       return details;
     } catch (error) {
       logger.warn({ err: error, profileUrl }, "Unable to enrich profile from LinkedIn page");
@@ -341,6 +349,71 @@ export class PostEngagementScraper extends BaseLinkedInClient {
     } finally {
       await page.close();
     }
+  }
+
+  private async openContactInfo(page: Page): Promise<void> {
+    const selectors = [
+      "a[data-control-name='contact_see_more']",
+      "a[href*='contact-info']",
+      "button[aria-label*='Contact info']",
+      "button[aria-label*='Contact Info']",
+      "button[data-test-id='profile-topcard-contact-info']"
+    ];
+    const clicked = await this.clickIfExists(page, selectors);
+    if (!clicked) {
+      return;
+    }
+
+    await this.randomDelay();
+    try {
+      await page.waitForSelector(
+        "section.pv-contact-info__contact-type, section[data-test-id='profile-contact-info'], div.artdeco-modal__content",
+        { timeout: Math.min(this.settings.pageTimeoutMs / 2, 6000) }
+      );
+    } catch {
+      // Contact info modal may not be available for all profiles.
+    }
+  }
+
+  private mergeProfileDetails(
+    stagehandAnalysis: LinkedInStagehandAnalysis,
+    legacyDetails: ExtractedProfileDetails
+  ): ExtractedProfileDetails {
+    const getStagehandField = (fieldName: string): string | undefined => {
+      const field = stagehandAnalysis.fields.find((f) => f.field === fieldName);
+      return field?.value;
+    };
+
+    const stagehandExperiences = stagehandAnalysis.experiences.map((exp) => ({
+      title: exp.fields.title.value ?? "",
+      company: exp.fields.company.value ?? "",
+      companyUrl: exp.fields.companyUrl.value,
+      startDate: undefined,
+      endDate: exp.isCurrent ? undefined : "",
+      dateRangeText: exp.fields.dateRange.value,
+      location: exp.fields.location.value,
+      description: undefined
+    }));
+
+    return {
+      fullName: getStagehandField("fullName") || legacyDetails.fullName,
+      headline: getStagehandField("headline") || legacyDetails.headline,
+      location: getStagehandField("location") || legacyDetails.location,
+      profileImageUrl: getStagehandField("profileImageUrl") || legacyDetails.profileImageUrl,
+      currentTitle: getStagehandField("currentTitle") || legacyDetails.currentTitle,
+      currentCompany: getStagehandField("currentCompany") || legacyDetails.currentCompany,
+      currentCompanyUrl: getStagehandField("currentCompanyUrl") || legacyDetails.currentCompanyUrl,
+      experiences: stagehandExperiences.length > 0 ? stagehandExperiences : legacyDetails.experiences,
+      currentCompanyStartedAt: legacyDetails.currentCompanyStartedAt,
+      email: legacyDetails.email,
+      phoneNumbers: legacyDetails.phoneNumbers,
+      birthday: legacyDetails.birthday,
+      education: legacyDetails.education,
+      connectionsText: legacyDetails.connectionsText,
+      connectionCount: legacyDetails.connectionCount,
+      followersText: legacyDetails.followersText,
+      followerCount: legacyDetails.followerCount
+    };
   }
 
   private normalizePostUrl(url: string): string {

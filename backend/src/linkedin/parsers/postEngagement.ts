@@ -1,3 +1,5 @@
+import type { ExtractedProfileDetails } from "./profile.js";
+
 export interface ExtractedEngagementProfile {
   fullName?: string;
   profileUrl: string;
@@ -10,6 +12,7 @@ export interface ExtractedEngagementProfile {
   email?: string;
   reactionLabel?: string;
   commentText?: string;
+  enrichedDetails?: ExtractedProfileDetails;
 }
 
 export interface EngagementExtractionOptions {
