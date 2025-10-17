@@ -2,7 +2,13 @@ import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AutoPlanResponse, SalesNavSeniority, SearchPreset, SearchTask, SearchTaskType } from "../../types";
+import type {
+  AutoPlanResponse,
+  SalesNavSeniority,
+  SearchPreset,
+  SearchTask,
+  SearchTaskType
+} from "../../types";
 import { apiClient } from "../../api/client";
 
 type TaskWithPreset = SearchTask & { preset?: SearchPreset };
@@ -19,15 +25,16 @@ const statusLabels: Record<SearchTask["status"], string> = {
   cancelled: "Cancelled"
 };
 
-const statusVariants: Record<SearchTask["status"], "ok" | "error" | "warn" | "info" | "progress"> = {
-  draft: "info",
-  pending: "progress",
-  queued: "warn",
-  running: "warn",
-  succeeded: "ok",
-  failed: "error",
-  cancelled: "error"
-};
+const statusVariants: Record<SearchTask["status"], "ok" | "error" | "warn" | "info" | "progress"> =
+  {
+    draft: "info",
+    pending: "progress",
+    queued: "warn",
+    running: "warn",
+    succeeded: "ok",
+    failed: "error",
+    cancelled: "error"
+  };
 
 type CreateMode = "icp" | "accounts" | "posts" | "profiles";
 
@@ -46,7 +53,9 @@ const SENIORITY_OPTIONS: Array<{ value: SalesNavSeniority; label: string }> = [
   { value: "ENTRY", label: "Entry" }
 ];
 
-export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: AutomationDashboardProps) => {
+export const AutomationDashboard = ({
+  onOpenSettings: _onOpenSettings
+}: AutomationDashboardProps) => {
   const queryClient = useQueryClient();
 
   const { data: presets } = useQuery({
@@ -102,7 +111,9 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   const [editYearsInRoleMax, setEditYearsInRoleMax] = useState("");
   const [editYearsExperienceMin, setEditYearsExperienceMin] = useState("");
   const [editYearsExperienceMax, setEditYearsExperienceMax] = useState("");
-  const [editRelationship, setEditRelationship] = useState<"" | "1" | "2" | "3" | "group" | "teamlink">("");
+  const [editRelationship, setEditRelationship] = useState<
+    "" | "1" | "2" | "3" | "group" | "teamlink"
+  >("");
   const [editPostedInPastDays, setEditPostedInPastDays] = useState("");
   const [editChangedJobsWindow, setEditChangedJobsWindow] = useState("");
   const [editFollowingCompany, setEditFollowingCompany] = useState(false);
@@ -118,7 +129,10 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   const [editSeniorities, setEditSeniorities] = useState<SalesNavSeniority[]>([]);
   const [createMode, setCreateMode] = useState<CreateMode | null>(null);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
-  const [createMenuPosition, setCreateMenuPosition] = useState<{ top: number; right: number } | null>(null);
+  const [createMenuPosition, setCreateMenuPosition] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
 
@@ -136,6 +150,16 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   const [profilesName, setProfilesName] = useState("");
   const [profilesLeadList, setProfilesLeadList] = useState("");
 
+  // Edit state for payload-based tasks
+  const [editAccountsInput, setEditAccountsInput] = useState("");
+  const [editAccountsLeadList, setEditAccountsLeadList] = useState("");
+  const [editPostsInput, setEditPostsInput] = useState("");
+  const [editPostsLeadList, setEditPostsLeadList] = useState("");
+  const [editPostsScrapeReactions, setEditPostsScrapeReactions] = useState(true);
+  const [editPostsScrapeCommenters, setEditPostsScrapeCommenters] = useState(true);
+  const [editProfilesInput, setEditProfilesInput] = useState("");
+  const [editProfilesLeadList, setEditProfilesLeadList] = useState("");
+
   const closeMenu = useCallback(() => {
     setMenuTaskId(null);
     setMenuPosition(null);
@@ -150,8 +174,6 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
     setEditingTask(null);
     setEditError(null);
   }, []);
-
-  const editingPreset = editingTask?.preset;
 
   const resetCreateState = useCallback(() => {
     setCreateError(null);
@@ -198,6 +220,39 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   }, [menuTaskId, closeMenu]);
 
   useEffect(() => {
+    if (!editingTask) {
+      return;
+    }
+
+    // Initialize edit state for payload-based tasks
+    if (editingTask.type === "account_followers" && editingTask.payload) {
+      const urls = editingTask.payload.accountUrls ?? [];
+      setEditAccountsInput(urls.join("\n"));
+      setEditAccountsLeadList(editingTask.payload.targetLeadListName ?? "");
+      setEditError(null);
+      return;
+    }
+
+    if (editingTask.type === "post_engagement" && editingTask.payload) {
+      const urls = editingTask.payload.postUrls ?? [];
+      setEditPostsInput(urls.join("\n"));
+      setEditPostsLeadList(editingTask.payload.targetLeadListName ?? "");
+      setEditPostsScrapeReactions(editingTask.payload.scrapeReactions ?? false);
+      setEditPostsScrapeCommenters(editingTask.payload.scrapeCommenters ?? false);
+      setEditError(null);
+      return;
+    }
+
+    if (editingTask.type === "profile_scrape" && editingTask.payload) {
+      const urls = editingTask.payload.profileUrls ?? [];
+      setEditProfilesInput(urls.join("\n"));
+      setEditProfilesLeadList(editingTask.payload.targetLeadListName ?? "");
+      setEditError(null);
+      return;
+    }
+
+    // For ICP/preset-based tasks
+    const editingPreset = editingTask.preset;
     if (!editingPreset) {
       return;
     }
@@ -295,7 +350,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
     setEditSavedLeadsAndAccounts(Boolean(editingPreset.filters.savedLeadsAndAccounts));
     setEditSeniorities([...editingPreset.filters.seniorities]);
     setEditError(null);
-  }, [editingPreset]);
+  }, [editingTask]);
 
   useEffect(() => {
     if (!createMode) {
@@ -305,7 +360,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   }, [createMode]);
 
   useEffect(() => {
-    if (!editingPreset) {
+    if (!editingTask) {
       return;
     }
     const handleKeydown = (event: KeyboardEvent) => {
@@ -318,7 +373,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
     return () => {
       window.removeEventListener("keydown", handleKeydown);
     };
-  }, [editingPreset, handleEditModalClose]);
+  }, [editingTask, handleEditModalClose]);
 
   const toggleSeniority = useCallback((value: SalesNavSeniority) => {
     setEditSeniorities((previous) =>
@@ -496,12 +551,39 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
   });
 
   const updatePreset = useMutation({
-    mutationFn: async ({ presetId, payload }: { presetId: string; payload: Partial<SearchPreset> }) => {
+    mutationFn: async ({
+      presetId,
+      payload
+    }: {
+      presetId: string;
+      payload: Partial<SearchPreset>;
+    }) => {
       const { data } = await apiClient.put<SearchPreset>(`/search-presets/${presetId}`, payload);
       return data;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["search-presets"] });
+    }
+  });
+
+  const updateTask = useMutation({
+    mutationFn: async ({
+      taskId,
+      payload
+    }: {
+      taskId: string;
+      payload: Record<string, unknown>;
+    }) => {
+      const { data } = await apiClient.patch<SearchTask>(`/tasks/${taskId}`, payload);
+      return data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      handleEditModalClose();
+      setBannerMessage("Task updated successfully");
+    },
+    onError: (error: unknown) => {
+      setEditError(error instanceof Error ? error.message : "Failed to update task");
     }
   });
 
@@ -525,7 +607,9 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
       handleCreateModalClose();
     },
     onError: (error: unknown) => {
-      setCreateError(error instanceof Error ? error.message : "Failed to generate automation from ICP");
+      setCreateError(
+        error instanceof Error ? error.message : "Failed to generate automation from ICP"
+      );
     }
   });
 
@@ -535,12 +619,16 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
       return data;
     },
     onSuccess: (task) => {
-      setBannerMessage(`Draft account follower task "${task.name ?? "Account Followers"}" created.`);
+      setBannerMessage(
+        `Draft account follower task "${task.name ?? "Account Followers"}" created.`
+      );
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
       handleCreateModalClose();
     },
     onError: (error: unknown) => {
-      setCreateError(error instanceof Error ? error.message : "Failed to create account follower task");
+      setCreateError(
+        error instanceof Error ? error.message : "Failed to create account follower task"
+      );
     }
   });
 
@@ -561,12 +649,18 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
       handleCreateModalClose();
     },
     onError: (error: unknown) => {
-      setCreateError(error instanceof Error ? error.message : "Failed to create post engagement task");
+      setCreateError(
+        error instanceof Error ? error.message : "Failed to create post engagement task"
+      );
     }
   });
 
   const createProfilesMutation = useMutation({
-    mutationFn: async (payload: { profileUrls: string[]; name?: string; leadListName?: string }) => {
+    mutationFn: async (payload: {
+      profileUrls: string[];
+      name?: string;
+      leadListName?: string;
+    }) => {
       const { data } = await apiClient.post<SearchTask>("/tasks/profiles", payload);
       return data;
     },
@@ -576,13 +670,16 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
       handleCreateModalClose();
     },
     onError: (error: unknown) => {
-      setCreateError(error instanceof Error ? error.message : "Failed to create profile scrape task");
+      setCreateError(
+        error instanceof Error ? error.message : "Failed to create profile scrape task"
+      );
     }
   });
 
   const handleEditSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      const editingPreset = editingTask?.preset;
       if (!editingPreset) {
         return;
       }
@@ -671,7 +768,10 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
       const trimmedPageLimit = editPageLimit.trim();
       const parsedPageLimit =
         trimmedPageLimit === "" ? undefined : Number.parseInt(trimmedPageLimit, 10);
-      if (parsedPageLimit !== undefined && (!Number.isInteger(parsedPageLimit) || parsedPageLimit <= 0)) {
+      if (
+        parsedPageLimit !== undefined &&
+        (!Number.isInteger(parsedPageLimit) || parsedPageLimit <= 0)
+      ) {
         setEditError("Page limit must be a positive number.");
         return;
       }
@@ -704,7 +804,10 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
         return;
       }
       const postedInPastDays = parseOptionalInteger(editPostedInPastDays);
-      if (Number.isNaN(postedInPastDays) || (postedInPastDays !== undefined && postedInPastDays <= 0)) {
+      if (
+        Number.isNaN(postedInPastDays) ||
+        (postedInPastDays !== undefined && postedInPastDays <= 0)
+      ) {
         setEditError("Posted in past days must be a positive number.");
         return;
       }
@@ -717,12 +820,18 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
         return;
       }
       const yearsAtCompanyMin = parseOptionalInteger(editYearsAtCompanyMin);
-      if (Number.isNaN(yearsAtCompanyMin) || (yearsAtCompanyMin !== undefined && yearsAtCompanyMin < 0)) {
+      if (
+        Number.isNaN(yearsAtCompanyMin) ||
+        (yearsAtCompanyMin !== undefined && yearsAtCompanyMin < 0)
+      ) {
         setEditError("Years in company minimum must be a positive number.");
         return;
       }
       const yearsAtCompanyMax = parseOptionalInteger(editYearsAtCompanyMax);
-      if (Number.isNaN(yearsAtCompanyMax) || (yearsAtCompanyMax !== undefined && yearsAtCompanyMax < 0)) {
+      if (
+        Number.isNaN(yearsAtCompanyMax) ||
+        (yearsAtCompanyMax !== undefined && yearsAtCompanyMax < 0)
+      ) {
         setEditError("Years in company maximum must be a positive number.");
         return;
       }
@@ -887,7 +996,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
       }
     },
     [
-      editingPreset,
+      editingTask,
       editKeywords,
       editExcluded,
       editPageLimit,
@@ -909,19 +1018,18 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
       editPersonas,
       editFirstName,
       editLastName,
-      editSeniorities,
       editHeadcountMin,
       editHeadcountMax,
       editRevenueMin,
       editRevenueMax,
-      editPostedInPastDays,
-      editChangedJobsWindow,
       editYearsAtCompanyMin,
       editYearsAtCompanyMax,
       editYearsInRoleMin,
       editYearsInRoleMax,
       editYearsExperienceMin,
       editYearsExperienceMax,
+      editPostedInPastDays,
+      editChangedJobsWindow,
       editFollowingCompany,
       editSharedExperiences,
       editTeamLinkIntroductions,
@@ -932,9 +1040,106 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
       editPeopleInCRM,
       editPeopleInteractedWith,
       editSavedLeadsAndAccounts,
+      editSeniorities,
       editRelationship,
       updatePreset,
       handleEditModalClose
+    ]
+  );
+
+  const handleEditPayloadSubmit = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!editingTask) {
+        return;
+      }
+
+      setEditError(null);
+
+      try {
+        if (editingTask.type === "account_followers") {
+          const urls = editAccountsInput
+            .split(/[\n,]/)
+            .map((url) => url.trim())
+            .filter(Boolean);
+
+          if (urls.length === 0) {
+            setEditError("Please provide at least one account URL");
+            return;
+          }
+
+          await updateTask.mutateAsync({
+            taskId: editingTask.id,
+            payload: {
+              payload: {
+                accountUrls: urls,
+                targetLeadListName: editAccountsLeadList.trim() || undefined
+              }
+            }
+          });
+        } else if (editingTask.type === "post_engagement") {
+          const urls = editPostsInput
+            .split(/[\n,]/)
+            .map((url) => url.trim())
+            .filter(Boolean);
+
+          if (urls.length === 0) {
+            setEditError("Please provide at least one post URL");
+            return;
+          }
+
+          if (!editPostsScrapeReactions && !editPostsScrapeCommenters) {
+            setEditError("Please select at least one engagement type to scrape");
+            return;
+          }
+
+          await updateTask.mutateAsync({
+            taskId: editingTask.id,
+            payload: {
+              payload: {
+                postUrls: urls,
+                scrapeReactions: editPostsScrapeReactions,
+                scrapeCommenters: editPostsScrapeCommenters,
+                targetLeadListName: editPostsLeadList.trim() || undefined
+              }
+            }
+          });
+        } else if (editingTask.type === "profile_scrape") {
+          const urls = editProfilesInput
+            .split(/[\n,]/)
+            .map((url) => url.trim())
+            .filter(Boolean);
+
+          if (urls.length === 0) {
+            setEditError("Please provide at least one profile URL");
+            return;
+          }
+
+          await updateTask.mutateAsync({
+            taskId: editingTask.id,
+            payload: {
+              payload: {
+                profileUrls: urls,
+                targetLeadListName: editProfilesLeadList.trim() || undefined
+              }
+            }
+          });
+        }
+      } catch (error) {
+        setEditError(error instanceof Error ? error.message : "Failed to update task");
+      }
+    },
+    [
+      editingTask,
+      editAccountsInput,
+      editAccountsLeadList,
+      editPostsInput,
+      editPostsLeadList,
+      editPostsScrapeReactions,
+      editPostsScrapeCommenters,
+      editProfilesInput,
+      editProfilesLeadList,
+      updateTask
     ]
   );
 
@@ -1050,12 +1255,12 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
     createMode === "icp"
       ? createIcpMutation.isLoading
       : createMode === "accounts"
-      ? createAccountsMutation.isLoading
-      : createMode === "posts"
-      ? createPostsMutation.isLoading
-      : createMode === "profiles"
-      ? createProfilesMutation.isLoading
-      : false;
+        ? createAccountsMutation.isLoading
+        : createMode === "posts"
+          ? createPostsMutation.isLoading
+          : createMode === "profiles"
+            ? createProfilesMutation.isLoading
+            : false;
 
   return (
     <div className="stack">
@@ -1147,7 +1352,9 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                         <span className={`status-pill status-pill--${statusVariants[task.status]}`}>
                           {statusLabels[task.status]}
                         </span>
-                        {task.errorMessage && <div className="muted">Error: {task.errorMessage}</div>}
+                        {task.errorMessage && (
+                          <div className="muted">Error: {task.errorMessage}</div>
+                        )}
                       </td>
                       <td>{formatDate(task.scheduledFor)}</td>
                       <td>{formatDate(task.startedAt)}</td>
@@ -1167,9 +1374,13 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                                 onClick={() => startTask.mutate(task.id)}
                                 disabled={startInFlight === task.id && startTask.isLoading}
                               >
-                                {startInFlight === task.id && startTask.isLoading ? "Starting..." : "Start"}
+                                {startInFlight === task.id && startTask.isLoading
+                                  ? "Starting..."
+                                  : "Start"}
                               </button>
-                            ) : task.status === "pending" || task.status === "queued" || task.status === "running" ? (
+                            ) : task.status === "pending" ||
+                              task.status === "queued" ||
+                              task.status === "running" ? (
                               <button
                                 type="button"
                                 className="button button--danger"
@@ -1185,7 +1396,9 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                                 onClick={() => startTask.mutate(task.id)}
                                 disabled={startInFlight === task.id && startTask.isLoading}
                               >
-                                {startInFlight === task.id && startTask.isLoading ? "Starting..." : "Re-run"}
+                                {startInFlight === task.id && startTask.isLoading
+                                  ? "Starting..."
+                                  : "Re-run"}
                               </button>
                             )
                           ) : (
@@ -1239,18 +1452,16 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                                     >
                                       Rename
                                     </button>
-                                    {task.preset ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          closeMenu();
-                                          setEditingTask(task);
-                                        }}
-                                        disabled={updatePreset.isLoading}
-                                      >
-                                        Edit
-                                      </button>
-                                    ) : null}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        closeMenu();
+                                        setEditingTask(task);
+                                      }}
+                                      disabled={updatePreset.isLoading || updateTask.isLoading}
+                                    >
+                                      Edit
+                                    </button>
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -1331,12 +1542,12 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
           )
         : null}
 
-      {editingPreset
+      {editingTask
         ? createPortal(
             <div
               className="modal-overlay"
               onClick={() => {
-                if (!updatePreset.isLoading) {
+                if (!updatePreset.isLoading && !updateTask.isLoading) {
                   handleEditModalClose();
                 }
               }}
@@ -1346,480 +1557,600 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                 onClick={(event) => {
                   event.stopPropagation();
                 }}
-                onSubmit={handleEditSubmit}
+                onSubmit={
+                  editingTask.type === "sales_navigator"
+                    ? handleEditSubmit
+                    : handleEditPayloadSubmit
+                }
               >
                 <header className="modal__header">
-                  <h2>Edit</h2>
+                  <h2>Edit {editingTask.name ?? "Task"}</h2>
                   <p className="muted">
-                    Fine-tune keywords for {editingPreset.name ?? editingTask?.name ?? "this preset"}.
+                    {editingTask.type === "account_followers"
+                      ? "Update account URLs and settings"
+                      : editingTask.type === "post_engagement"
+                        ? "Update post URLs and engagement settings"
+                        : editingTask.type === "profile_scrape"
+                          ? "Update profile URLs and settings"
+                          : `Fine-tune keywords for ${editingTask.preset?.name ?? "this preset"}`}
                   </p>
                 </header>
                 <div className="modal__body">
                   {editError ? <p className="form-error">{editError}</p> : null}
-                  <div className="modal__grid">
-                    <section className="modal__section">
-                      <h3>Prospecting &amp; Signals</h3>
-                      <div className="input-group">
-                        <label htmlFor="edit-keywords">Keywords (one per line)</label>
-                        <textarea
-                          id="edit-keywords"
-                          value={editKeywords}
-                          onChange={(event) => setEditKeywords(event.target.value)}
-                          rows={6}
-                        />
-                      </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-excluded">Excluded keywords (one per line)</label>
-                        <textarea
-                          id="edit-excluded"
-                          value={editExcluded}
-                          onChange={(event) => setEditExcluded(event.target.value)}
-                          rows={4}
-                        />
-                      </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-posted">Posted in past days</label>
+                  {editingTask.type === "account_followers" ? (
+                    <div className="input-group">
+                      <label htmlFor="edit-accounts">Account URLs (one per line)</label>
+                      <textarea
+                        id="edit-accounts"
+                        value={editAccountsInput}
+                        onChange={(event) => setEditAccountsInput(event.target.value)}
+                        rows={10}
+                        placeholder="https://www.linkedin.com/company/example-one&#10;https://www.linkedin.com/company/example-two"
+                      />
+                      <small className="muted">Separate each company by a new line or comma.</small>
+                      <div className="input-group" style={{ marginTop: "1rem" }}>
+                        <label htmlFor="edit-accounts-leadlist">Target lead list (optional)</label>
                         <input
-                          id="edit-posted"
-                          type="number"
-                          min={1}
-                          value={editPostedInPastDays}
-                          onChange={(event) => setEditPostedInPastDays(event.target.value)}
+                          id="edit-accounts-leadlist"
+                          value={editAccountsLeadList}
+                          onChange={(event) => setEditAccountsLeadList(event.target.value)}
+                          placeholder="e.g., My Lead List"
                         />
-                        <small className="muted">Leave blank to include all activity.</small>
+                      </div>
+                    </div>
+                  ) : editingTask.type === "post_engagement" ? (
+                    <div>
+                      <div className="input-group">
+                        <label htmlFor="edit-posts">Post URLs (one per line)</label>
+                        <textarea
+                          id="edit-posts"
+                          value={editPostsInput}
+                          onChange={(event) => setEditPostsInput(event.target.value)}
+                          rows={10}
+                          placeholder="https://www.linkedin.com/posts/..."
+                        />
+                        <small className="muted">Separate each post by a new line or comma.</small>
+                      </div>
+                      <div className="input-group inline">
+                        <label>Collect</label>
+                        <label className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={editPostsScrapeReactions}
+                            onChange={(event) => setEditPostsScrapeReactions(event.target.checked)}
+                          />
+                          <span>Reactions</span>
+                        </label>
+                        <label className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={editPostsScrapeCommenters}
+                            onChange={(event) => setEditPostsScrapeCommenters(event.target.checked)}
+                          />
+                          <span>Comments</span>
+                        </label>
                       </div>
                       <div className="input-group">
-                        <label htmlFor="edit-changed-jobs">Changed jobs within days</label>
+                        <label htmlFor="edit-posts-leadlist">Target lead list (optional)</label>
                         <input
-                          id="edit-changed-jobs"
-                          type="number"
-                          min={1}
-                          value={editChangedJobsWindow}
-                          onChange={(event) => setEditChangedJobsWindow(event.target.value)}
-                        />
-                        <small className="muted">Set to 90 to match Sales Navigator's default quick filter.</small>
-                      </div>
-                      <div className="toggle-grid">
-                        <label className="toggle-option">
-                          <input
-                            type="checkbox"
-                            checked={editFollowingCompany}
-                            onChange={(event) => setEditFollowingCompany(event.target.checked)}
-                          />
-                          <span>Following your company</span>
-                        </label>
-                        <label className="toggle-option">
-                          <input
-                            type="checkbox"
-                            checked={editSharedExperiences}
-                            onChange={(event) => setEditSharedExperiences(event.target.checked)}
-                          />
-                          <span>Shared experiences</span>
-                        </label>
-                        <label className="toggle-option">
-                          <input
-                            type="checkbox"
-                            checked={editTeamLinkIntroductions}
-                            onChange={(event) => setEditTeamLinkIntroductions(event.target.checked)}
-                          />
-                          <span>TeamLink intro available</span>
-                        </label>
-                        <label className="toggle-option">
-                          <input
-                            type="checkbox"
-                            checked={editViewedProfile}
-                            onChange={(event) => setEditViewedProfile(event.target.checked)}
-                          />
-                          <span>Viewed your profile</span>
-                        </label>
-                        <label className="toggle-option">
-                          <input
-                            type="checkbox"
-                            checked={editPastCustomer}
-                            onChange={(event) => setEditPastCustomer(event.target.checked)}
-                          />
-                          <span>Past customer</span>
-                        </label>
-                        <label className="toggle-option">
-                          <input
-                            type="checkbox"
-                            checked={editPastColleague}
-                            onChange={(event) => setEditPastColleague(event.target.checked)}
-                          />
-                          <span>Past colleague</span>
-                        </label>
-                        <label className="toggle-option">
-                          <input
-                            type="checkbox"
-                            checked={editBuyerIntent}
-                            onChange={(event) => setEditBuyerIntent(event.target.checked)}
-                          />
-                          <span>High buyer intent</span>
-                        </label>
-                        <label className="toggle-option">
-                          <input
-                            type="checkbox"
-                            checked={editPeopleInCRM}
-                            onChange={(event) => setEditPeopleInCRM(event.target.checked)}
-                          />
-                          <span>People in CRM</span>
-                        </label>
-                        <label className="toggle-option">
-                          <input
-                            type="checkbox"
-                            checked={editPeopleInteractedWith}
-                            onChange={(event) => setEditPeopleInteractedWith(event.target.checked)}
-                          />
-                          <span>People you interacted with</span>
-                        </label>
-                        <label className="toggle-option">
-                          <input
-                            type="checkbox"
-                            checked={editSavedLeadsAndAccounts}
-                            onChange={(event) => setEditSavedLeadsAndAccounts(event.target.checked)}
-                          />
-                          <span>Saved leads &amp; accounts</span>
-                        </label>
-                      </div>
-                    </section>
-                    <section className="modal__section">
-                      <h3>Account Filters</h3>
-                      <div className="input-group">
-                        <label htmlFor="edit-current-companies">Current companies (one per line)</label>
-                        <textarea
-                          id="edit-current-companies"
-                          value={editCurrentCompanies}
-                          onChange={(event) => setEditCurrentCompanies(event.target.value)}
-                          rows={4}
+                          id="edit-posts-leadlist"
+                          value={editPostsLeadList}
+                          onChange={(event) => setEditPostsLeadList(event.target.value)}
+                          placeholder="e.g., My Lead List"
                         />
                       </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-past-companies">Past companies (one per line)</label>
-                        <textarea
-                          id="edit-past-companies"
-                          value={editPastCompanies}
-                          onChange={(event) => setEditPastCompanies(event.target.value)}
-                          rows={4}
+                    </div>
+                  ) : editingTask.type === "profile_scrape" ? (
+                    <div className="input-group">
+                      <label htmlFor="edit-profiles">Profile URLs (one per line)</label>
+                      <textarea
+                        id="edit-profiles"
+                        value={editProfilesInput}
+                        onChange={(event) => setEditProfilesInput(event.target.value)}
+                        rows={10}
+                        placeholder="https://www.linkedin.com/in/example-one&#10;https://www.linkedin.com/in/example-two"
+                      />
+                      <small className="muted">Separate each profile by a new line or comma.</small>
+                      <div className="input-group" style={{ marginTop: "1rem" }}>
+                        <label htmlFor="edit-profiles-leadlist">Target lead list (optional)</label>
+                        <input
+                          id="edit-profiles-leadlist"
+                          value={editProfilesLeadList}
+                          onChange={(event) => setEditProfilesLeadList(event.target.value)}
+                          placeholder="e.g., My Lead List"
                         />
                       </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-industries">Industries (one per line)</label>
-                        <textarea
-                          id="edit-industries"
-                          value={editIndustries}
-                          onChange={(event) => setEditIndustries(event.target.value)}
-                          rows={4}
-                        />
-                      </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-company-types">Company types (one per line)</label>
-                        <textarea
-                          id="edit-company-types"
-                          value={editCompanyTypes}
-                          onChange={(event) => setEditCompanyTypes(event.target.value)}
-                          rows={4}
-                        />
-                      </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-company-hq">Company HQ locations (one per line)</label>
-                        <textarea
-                          id="edit-company-hq"
-                          value={editCompanyHeadquarters}
-                          onChange={(event) => setEditCompanyHeadquarters(event.target.value)}
-                          rows={4}
-                        />
-                      </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-account-lists">Account lists (one per line)</label>
-                        <textarea
-                          id="edit-account-lists"
-                          value={editAccountLists}
-                          onChange={(event) => setEditAccountLists(event.target.value)}
-                          rows={3}
-                        />
-                      </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-lead-lists">Lead lists (one per line)</label>
-                        <textarea
-                          id="edit-lead-lists"
-                          value={editLeadLists}
-                          onChange={(event) => setEditLeadLists(event.target.value)}
-                          rows={3}
-                        />
-                      </div>
-                      <div className="input-group">
-                        <label>Company size (employees)</label>
-                        <div className="input-row">
-                          <div className="input-subgroup">
-                            <span className="input-subgroup__label">Min</span>
-                            <input
-                              type="number"
-                              min={0}
-                              value={editHeadcountMin}
-                              onChange={(event) => setEditHeadcountMin(event.target.value)}
-                            />
-                          </div>
-                          <div className="input-subgroup">
-                            <span className="input-subgroup__label">Max</span>
-                            <input
-                              type="number"
-                              min={0}
-                              value={editHeadcountMax}
-                              onChange={(event) => setEditHeadcountMax(event.target.value)}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="input-group">
-                        <label>Company revenue (USD)</label>
-                        <div className="input-row">
-                          <div className="input-subgroup">
-                            <span className="input-subgroup__label">Min</span>
-                            <input
-                              type="number"
-                              min={0}
-                              value={editRevenueMin}
-                              onChange={(event) => setEditRevenueMin(event.target.value)}
-                            />
-                          </div>
-                          <div className="input-subgroup">
-                            <span className="input-subgroup__label">Max</span>
-                            <input
-                              type="number"
-                              min={0}
-                              value={editRevenueMax}
-                              onChange={(event) => setEditRevenueMax(event.target.value)}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-                    <section className="modal__section">
-                      <h3>Persona Filters</h3>
-                      <div className="input-row">
-                        <div className="input-subgroup">
-                          <label htmlFor="edit-first-name">First name</label>
-                          <input
-                            id="edit-first-name"
-                            value={editFirstName}
-                            onChange={(event) => setEditFirstName(event.target.value)}
+                    </div>
+                  ) : (
+                    <div className="modal__grid">
+                      <section className="modal__section">
+                        <h3>Prospecting &amp; Signals</h3>
+                        <div className="input-group">
+                          <label htmlFor="edit-keywords">Keywords (one per line)</label>
+                          <textarea
+                            id="edit-keywords"
+                            value={editKeywords}
+                            onChange={(event) => setEditKeywords(event.target.value)}
+                            rows={6}
                           />
                         </div>
-                        <div className="input-subgroup">
-                          <label htmlFor="edit-last-name">Last name</label>
-                          <input
-                            id="edit-last-name"
-                            value={editLastName}
-                            onChange={(event) => setEditLastName(event.target.value)}
+                        <div className="input-group">
+                          <label htmlFor="edit-excluded">Excluded keywords (one per line)</label>
+                          <textarea
+                            id="edit-excluded"
+                            value={editExcluded}
+                            onChange={(event) => setEditExcluded(event.target.value)}
+                            rows={4}
                           />
                         </div>
-                      </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-functions">Functions / Departments (one per line)</label>
-                        <textarea
-                          id="edit-functions"
-                          value={editFunctions}
-                          onChange={(event) => setEditFunctions(event.target.value)}
-                          rows={4}
-                        />
-                      </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-current-titles">Current job titles (one per line)</label>
-                        <textarea
-                          id="edit-current-titles"
-                          value={editCurrentTitles}
-                          onChange={(event) => setEditCurrentTitles(event.target.value)}
-                          rows={4}
-                        />
-                      </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-past-titles">Past job titles (one per line)</label>
-                        <textarea
-                          id="edit-past-titles"
-                          value={editPastTitles}
-                          onChange={(event) => setEditPastTitles(event.target.value)}
-                          rows={4}
-                        />
-                      </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-profile-languages">Profile languages (one per line)</label>
-                        <textarea
-                          id="edit-profile-languages"
-                          value={editProfileLanguages}
-                          onChange={(event) => setEditProfileLanguages(event.target.value)}
-                          rows={4}
-                        />
-                      </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-personas">Personas (one per line)</label>
-                        <textarea
-                          id="edit-personas"
-                          value={editPersonas}
-                          onChange={(event) => setEditPersonas(event.target.value)}
-                          rows={3}
-                        />
-                      </div>
-                      <fieldset className="input-fieldset">
-                        <legend>Seniority levels</legend>
-                        <div className="checkbox-list">
-                          {SENIORITY_OPTIONS.map((option) => (
-                            <label key={option.value} className="checkbox-pill">
+                        <div className="input-group">
+                          <label htmlFor="edit-posted">Posted in past days</label>
+                          <input
+                            id="edit-posted"
+                            type="number"
+                            min={1}
+                            value={editPostedInPastDays}
+                            onChange={(event) => setEditPostedInPastDays(event.target.value)}
+                          />
+                          <small className="muted">Leave blank to include all activity.</small>
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="edit-changed-jobs">Changed jobs within days</label>
+                          <input
+                            id="edit-changed-jobs"
+                            type="number"
+                            min={1}
+                            value={editChangedJobsWindow}
+                            onChange={(event) => setEditChangedJobsWindow(event.target.value)}
+                          />
+                          <small className="muted">
+                            Set to 90 to match Sales Navigator's default quick filter.
+                          </small>
+                        </div>
+                        <div className="toggle-grid">
+                          <label className="toggle-option">
+                            <input
+                              type="checkbox"
+                              checked={editFollowingCompany}
+                              onChange={(event) => setEditFollowingCompany(event.target.checked)}
+                            />
+                            <span>Following your company</span>
+                          </label>
+                          <label className="toggle-option">
+                            <input
+                              type="checkbox"
+                              checked={editSharedExperiences}
+                              onChange={(event) => setEditSharedExperiences(event.target.checked)}
+                            />
+                            <span>Shared experiences</span>
+                          </label>
+                          <label className="toggle-option">
+                            <input
+                              type="checkbox"
+                              checked={editTeamLinkIntroductions}
+                              onChange={(event) =>
+                                setEditTeamLinkIntroductions(event.target.checked)
+                              }
+                            />
+                            <span>TeamLink intro available</span>
+                          </label>
+                          <label className="toggle-option">
+                            <input
+                              type="checkbox"
+                              checked={editViewedProfile}
+                              onChange={(event) => setEditViewedProfile(event.target.checked)}
+                            />
+                            <span>Viewed your profile</span>
+                          </label>
+                          <label className="toggle-option">
+                            <input
+                              type="checkbox"
+                              checked={editPastCustomer}
+                              onChange={(event) => setEditPastCustomer(event.target.checked)}
+                            />
+                            <span>Past customer</span>
+                          </label>
+                          <label className="toggle-option">
+                            <input
+                              type="checkbox"
+                              checked={editPastColleague}
+                              onChange={(event) => setEditPastColleague(event.target.checked)}
+                            />
+                            <span>Past colleague</span>
+                          </label>
+                          <label className="toggle-option">
+                            <input
+                              type="checkbox"
+                              checked={editBuyerIntent}
+                              onChange={(event) => setEditBuyerIntent(event.target.checked)}
+                            />
+                            <span>High buyer intent</span>
+                          </label>
+                          <label className="toggle-option">
+                            <input
+                              type="checkbox"
+                              checked={editPeopleInCRM}
+                              onChange={(event) => setEditPeopleInCRM(event.target.checked)}
+                            />
+                            <span>People in CRM</span>
+                          </label>
+                          <label className="toggle-option">
+                            <input
+                              type="checkbox"
+                              checked={editPeopleInteractedWith}
+                              onChange={(event) =>
+                                setEditPeopleInteractedWith(event.target.checked)
+                              }
+                            />
+                            <span>People you interacted with</span>
+                          </label>
+                          <label className="toggle-option">
+                            <input
+                              type="checkbox"
+                              checked={editSavedLeadsAndAccounts}
+                              onChange={(event) =>
+                                setEditSavedLeadsAndAccounts(event.target.checked)
+                              }
+                            />
+                            <span>Saved leads &amp; accounts</span>
+                          </label>
+                        </div>
+                      </section>
+                      <section className="modal__section">
+                        <h3>Account Filters</h3>
+                        <div className="input-group">
+                          <label htmlFor="edit-current-companies">
+                            Current companies (one per line)
+                          </label>
+                          <textarea
+                            id="edit-current-companies"
+                            value={editCurrentCompanies}
+                            onChange={(event) => setEditCurrentCompanies(event.target.value)}
+                            rows={4}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="edit-past-companies">Past companies (one per line)</label>
+                          <textarea
+                            id="edit-past-companies"
+                            value={editPastCompanies}
+                            onChange={(event) => setEditPastCompanies(event.target.value)}
+                            rows={4}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="edit-industries">Industries (one per line)</label>
+                          <textarea
+                            id="edit-industries"
+                            value={editIndustries}
+                            onChange={(event) => setEditIndustries(event.target.value)}
+                            rows={4}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="edit-company-types">Company types (one per line)</label>
+                          <textarea
+                            id="edit-company-types"
+                            value={editCompanyTypes}
+                            onChange={(event) => setEditCompanyTypes(event.target.value)}
+                            rows={4}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="edit-company-hq">
+                            Company HQ locations (one per line)
+                          </label>
+                          <textarea
+                            id="edit-company-hq"
+                            value={editCompanyHeadquarters}
+                            onChange={(event) => setEditCompanyHeadquarters(event.target.value)}
+                            rows={4}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="edit-account-lists">Account lists (one per line)</label>
+                          <textarea
+                            id="edit-account-lists"
+                            value={editAccountLists}
+                            onChange={(event) => setEditAccountLists(event.target.value)}
+                            rows={3}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="edit-lead-lists">Lead lists (one per line)</label>
+                          <textarea
+                            id="edit-lead-lists"
+                            value={editLeadLists}
+                            onChange={(event) => setEditLeadLists(event.target.value)}
+                            rows={3}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label>Company size (employees)</label>
+                          <div className="input-row">
+                            <div className="input-subgroup">
+                              <span className="input-subgroup__label">Min</span>
                               <input
-                                type="checkbox"
-                                checked={editSeniorities.includes(option.value)}
-                                onChange={() => toggleSeniority(option.value)}
+                                type="number"
+                                min={0}
+                                value={editHeadcountMin}
+                                onChange={(event) => setEditHeadcountMin(event.target.value)}
                               />
-                              <span>{option.label}</span>
-                            </label>
-                          ))}
+                            </div>
+                            <div className="input-subgroup">
+                              <span className="input-subgroup__label">Max</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={editHeadcountMax}
+                                onChange={(event) => setEditHeadcountMax(event.target.value)}
+                              />
+                            </div>
+                          </div>
                         </div>
-                      </fieldset>
-                      <div className="input-group">
-                        <label>Years in current company</label>
+                        <div className="input-group">
+                          <label>Company revenue (USD)</label>
+                          <div className="input-row">
+                            <div className="input-subgroup">
+                              <span className="input-subgroup__label">Min</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={editRevenueMin}
+                                onChange={(event) => setEditRevenueMin(event.target.value)}
+                              />
+                            </div>
+                            <div className="input-subgroup">
+                              <span className="input-subgroup__label">Max</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={editRevenueMax}
+                                onChange={(event) => setEditRevenueMax(event.target.value)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </section>
+                      <section className="modal__section">
+                        <h3>Persona Filters</h3>
                         <div className="input-row">
                           <div className="input-subgroup">
-                            <span className="input-subgroup__label">Min</span>
+                            <label htmlFor="edit-first-name">First name</label>
                             <input
-                              type="number"
-                              min={0}
-                              value={editYearsAtCompanyMin}
-                              onChange={(event) => setEditYearsAtCompanyMin(event.target.value)}
+                              id="edit-first-name"
+                              value={editFirstName}
+                              onChange={(event) => setEditFirstName(event.target.value)}
                             />
                           </div>
                           <div className="input-subgroup">
-                            <span className="input-subgroup__label">Max</span>
+                            <label htmlFor="edit-last-name">Last name</label>
                             <input
-                              type="number"
-                              min={0}
-                              value={editYearsAtCompanyMax}
-                              onChange={(event) => setEditYearsAtCompanyMax(event.target.value)}
+                              id="edit-last-name"
+                              value={editLastName}
+                              onChange={(event) => setEditLastName(event.target.value)}
                             />
                           </div>
                         </div>
-                      </div>
-                      <div className="input-group">
-                        <label>Years in current position</label>
-                        <div className="input-row">
-                          <div className="input-subgroup">
-                            <span className="input-subgroup__label">Min</span>
-                            <input
-                              type="number"
-                              min={0}
-                              value={editYearsInRoleMin}
-                              onChange={(event) => setEditYearsInRoleMin(event.target.value)}
-                            />
+                        <div className="input-group">
+                          <label htmlFor="edit-functions">
+                            Functions / Departments (one per line)
+                          </label>
+                          <textarea
+                            id="edit-functions"
+                            value={editFunctions}
+                            onChange={(event) => setEditFunctions(event.target.value)}
+                            rows={4}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="edit-current-titles">
+                            Current job titles (one per line)
+                          </label>
+                          <textarea
+                            id="edit-current-titles"
+                            value={editCurrentTitles}
+                            onChange={(event) => setEditCurrentTitles(event.target.value)}
+                            rows={4}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="edit-past-titles">Past job titles (one per line)</label>
+                          <textarea
+                            id="edit-past-titles"
+                            value={editPastTitles}
+                            onChange={(event) => setEditPastTitles(event.target.value)}
+                            rows={4}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="edit-profile-languages">
+                            Profile languages (one per line)
+                          </label>
+                          <textarea
+                            id="edit-profile-languages"
+                            value={editProfileLanguages}
+                            onChange={(event) => setEditProfileLanguages(event.target.value)}
+                            rows={4}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="edit-personas">Personas (one per line)</label>
+                          <textarea
+                            id="edit-personas"
+                            value={editPersonas}
+                            onChange={(event) => setEditPersonas(event.target.value)}
+                            rows={3}
+                          />
+                        </div>
+                        <fieldset className="input-fieldset">
+                          <legend>Seniority levels</legend>
+                          <div className="checkbox-list">
+                            {SENIORITY_OPTIONS.map((option) => (
+                              <label key={option.value} className="checkbox-pill">
+                                <input
+                                  type="checkbox"
+                                  checked={editSeniorities.includes(option.value)}
+                                  onChange={() => toggleSeniority(option.value)}
+                                />
+                                <span>{option.label}</span>
+                              </label>
+                            ))}
                           </div>
-                          <div className="input-subgroup">
-                            <span className="input-subgroup__label">Max</span>
-                            <input
-                              type="number"
-                              min={0}
-                              value={editYearsInRoleMax}
-                              onChange={(event) => setEditYearsInRoleMax(event.target.value)}
-                            />
+                        </fieldset>
+                        <div className="input-group">
+                          <label>Years in current company</label>
+                          <div className="input-row">
+                            <div className="input-subgroup">
+                              <span className="input-subgroup__label">Min</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={editYearsAtCompanyMin}
+                                onChange={(event) => setEditYearsAtCompanyMin(event.target.value)}
+                              />
+                            </div>
+                            <div className="input-subgroup">
+                              <span className="input-subgroup__label">Max</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={editYearsAtCompanyMax}
+                                onChange={(event) => setEditYearsAtCompanyMax(event.target.value)}
+                              />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div className="input-group">
-                        <label>Total years of experience</label>
-                        <div className="input-row">
-                          <div className="input-subgroup">
-                            <span className="input-subgroup__label">Min</span>
-                            <input
-                              type="number"
-                              min={0}
-                              value={editYearsExperienceMin}
-                              onChange={(event) => setEditYearsExperienceMin(event.target.value)}
-                            />
-                          </div>
-                          <div className="input-subgroup">
-                            <span className="input-subgroup__label">Max</span>
-                            <input
-                              type="number"
-                              min={0}
-                              value={editYearsExperienceMax}
-                              onChange={(event) => setEditYearsExperienceMax(event.target.value)}
-                            />
+                        <div className="input-group">
+                          <label>Years in current position</label>
+                          <div className="input-row">
+                            <div className="input-subgroup">
+                              <span className="input-subgroup__label">Min</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={editYearsInRoleMin}
+                                onChange={(event) => setEditYearsInRoleMin(event.target.value)}
+                              />
+                            </div>
+                            <div className="input-subgroup">
+                              <span className="input-subgroup__label">Max</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={editYearsInRoleMax}
+                                onChange={(event) => setEditYearsInRoleMax(event.target.value)}
+                              />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </section>
-                    <section className="modal__section">
-                      <h3>Network &amp; Reach</h3>
-                      <div className="input-group">
-                        <label htmlFor="edit-geographies">Geographies (one per line)</label>
-                        <textarea
-                          id="edit-geographies"
-                          value={editGeographies}
-                          onChange={(event) => setEditGeographies(event.target.value)}
-                          rows={4}
-                        />
-                      </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-relationship">Relationship</label>
-                        <select
-                          id="edit-relationship"
-                          value={editRelationship}
-                          onChange={(event) =>
-                            setEditRelationship(event.target.value as "" | "1" | "2" | "3" | "group" | "teamlink")
-                          }
-                        >
-                          <option value="">All</option>
-                          <option value="1">1st-degree connections</option>
-                          <option value="2">2nd-degree connections</option>
-                          <option value="3">3rd-degree &amp; more</option>
-                          <option value="group">Shared LinkedIn groups</option>
-                          <option value="teamlink">TeamLink introductions</option>
-                        </select>
-                      </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-connections-of">Connections of (one per line)</label>
-                        <textarea
-                          id="edit-connections-of"
-                          value={editConnectionsOf}
-                          onChange={(event) => setEditConnectionsOf(event.target.value)}
-                          rows={3}
-                        />
-                        <small className="muted">Use teammate names to leverage TeamLink networks.</small>
-                      </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-groups">Groups (one per line)</label>
-                        <textarea
-                          id="edit-groups"
-                          value={editGroups}
-                          onChange={(event) => setEditGroups(event.target.value)}
-                          rows={3}
-                        />
-                      </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-schools">Schools (one per line)</label>
-                        <textarea
-                          id="edit-schools"
-                          value={editSchools}
-                          onChange={(event) => setEditSchools(event.target.value)}
-                          rows={3}
-                        />
-                      </div>
-                      <div className="input-group">
-                        <label htmlFor="edit-page-limit">Page limit</label>
-                        <input
-                          id="edit-page-limit"
-                          type="number"
-                          min={1}
-                          value={editPageLimit}
-                          onChange={(event) => setEditPageLimit(event.target.value)}
-                        />
-                        <small className="muted">Controls how many pages of results the automation requests.</small>
-                      </div>
-                    </section>
-                  </div>
+                        <div className="input-group">
+                          <label>Total years of experience</label>
+                          <div className="input-row">
+                            <div className="input-subgroup">
+                              <span className="input-subgroup__label">Min</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={editYearsExperienceMin}
+                                onChange={(event) => setEditYearsExperienceMin(event.target.value)}
+                              />
+                            </div>
+                            <div className="input-subgroup">
+                              <span className="input-subgroup__label">Max</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={editYearsExperienceMax}
+                                onChange={(event) => setEditYearsExperienceMax(event.target.value)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </section>
+                      <section className="modal__section">
+                        <h3>Network &amp; Reach</h3>
+                        <div className="input-group">
+                          <label htmlFor="edit-geographies">Geographies (one per line)</label>
+                          <textarea
+                            id="edit-geographies"
+                            value={editGeographies}
+                            onChange={(event) => setEditGeographies(event.target.value)}
+                            rows={4}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="edit-relationship">Relationship</label>
+                          <select
+                            id="edit-relationship"
+                            value={editRelationship}
+                            onChange={(event) =>
+                              setEditRelationship(
+                                event.target.value as "" | "1" | "2" | "3" | "group" | "teamlink"
+                              )
+                            }
+                          >
+                            <option value="">All</option>
+                            <option value="1">1st-degree connections</option>
+                            <option value="2">2nd-degree connections</option>
+                            <option value="3">3rd-degree &amp; more</option>
+                            <option value="group">Shared LinkedIn groups</option>
+                            <option value="teamlink">TeamLink introductions</option>
+                          </select>
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="edit-connections-of">Connections of (one per line)</label>
+                          <textarea
+                            id="edit-connections-of"
+                            value={editConnectionsOf}
+                            onChange={(event) => setEditConnectionsOf(event.target.value)}
+                            rows={3}
+                          />
+                          <small className="muted">
+                            Use teammate names to leverage TeamLink networks.
+                          </small>
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="edit-groups">Groups (one per line)</label>
+                          <textarea
+                            id="edit-groups"
+                            value={editGroups}
+                            onChange={(event) => setEditGroups(event.target.value)}
+                            rows={3}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="edit-schools">Schools (one per line)</label>
+                          <textarea
+                            id="edit-schools"
+                            value={editSchools}
+                            onChange={(event) => setEditSchools(event.target.value)}
+                            rows={3}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="edit-page-limit">Page limit</label>
+                          <input
+                            id="edit-page-limit"
+                            type="number"
+                            min={1}
+                            value={editPageLimit}
+                            onChange={(event) => setEditPageLimit(event.target.value)}
+                          />
+                          <small className="muted">
+                            Controls how many pages of results the automation requests.
+                          </small>
+                        </div>
+                      </section>
+                    </div>
+                  )}
                 </div>
                 <footer className="modal__footer">
                   <button
                     type="button"
                     className="button button--secondary"
                     onClick={handleEditModalClose}
-                    disabled={updatePreset.isLoading}
+                    disabled={updatePreset.isLoading || updateTask.isLoading}
                   >
                     Cancel
                   </button>
@@ -1944,10 +2275,14 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                                   onChange={(event) => setAccountsInput(event.target.value)}
                                   placeholder="https://www.linkedin.com/company/example-one\nhttps://www.linkedin.com/company/example-two"
                                 />
-                                <small className="muted">Separate each company by a new line or comma.</small>
+                                <small className="muted">
+                                  Separate each company by a new line or comma.
+                                </small>
                               </div>
                               <div className="input-group">
-                                <label htmlFor="accounts-leadlist">Target lead list (optional)</label>
+                                <label htmlFor="accounts-leadlist">
+                                  Target lead list (optional)
+                                </label>
                                 <input
                                   id="accounts-leadlist"
                                   value={accountsLeadList}
@@ -1982,7 +2317,9 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                                   onChange={(event) => setPostsInput(event.target.value)}
                                   placeholder="https://www.linkedin.com/posts/..."
                                 />
-                                <small className="muted">Separate each post by a new line or comma.</small>
+                                <small className="muted">
+                                  Separate each post by a new line or comma.
+                                </small>
                               </div>
                               <div className="input-group inline">
                                 <label>Collect</label>
@@ -1990,7 +2327,9 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                                   <input
                                     type="checkbox"
                                     checked={postsScrapeReactions}
-                                    onChange={(event) => setPostsScrapeReactions(event.target.checked)}
+                                    onChange={(event) =>
+                                      setPostsScrapeReactions(event.target.checked)
+                                    }
                                   />
                                   <span>Reactions</span>
                                 </label>
@@ -1998,7 +2337,9 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                                   <input
                                     type="checkbox"
                                     checked={postsScrapeCommenters}
-                                    onChange={(event) => setPostsScrapeCommenters(event.target.checked)}
+                                    onChange={(event) =>
+                                      setPostsScrapeCommenters(event.target.checked)
+                                    }
                                   />
                                   <span>Comments</span>
                                 </label>
@@ -2036,10 +2377,14 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                                   onChange={(event) => setProfilesInput(event.target.value)}
                                   placeholder={`https://www.linkedin.com/in/example-one\nhttps://www.linkedin.com/in/example-two`}
                                 />
-                                <small className="muted">Separate each profile by a new line or comma.</small>
+                                <small className="muted">
+                                  Separate each profile by a new line or comma.
+                                </small>
                               </div>
                               <div className="input-group">
-                                <label htmlFor="profiles-leadlist">Target lead list (optional)</label>
+                                <label htmlFor="profiles-leadlist">
+                                  Target lead list (optional)
+                                </label>
                                 <input
                                   id="profiles-leadlist"
                                   value={profilesLeadList}
@@ -2051,7 +2396,7 @@ export const AutomationDashboard = ({ onOpenSettings: _onOpenSettings }: Automat
                           );
                         }
                         return null;
-                        })()}
+                      })()}
                     </div>
                     <footer className="modal__footer">
                       <button

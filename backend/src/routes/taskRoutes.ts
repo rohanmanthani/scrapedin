@@ -39,7 +39,8 @@ export const createTaskRouter = (
       const task = await taskService.createAccountsTask(settings, {
         name,
         accountUrls: trimmed,
-        targetLeadListName: typeof leadListName === "string" ? leadListName.trim() || undefined : undefined
+        targetLeadListName:
+          typeof leadListName === "string" ? leadListName.trim() || undefined : undefined
       });
       res.status(201).json(task);
     })
@@ -72,7 +73,8 @@ export const createTaskRouter = (
         postUrls: trimmed,
         scrapeReactions: reactionsFlag,
         scrapeCommenters: commentsFlag,
-        targetLeadListName: typeof leadListName === "string" ? leadListName.trim() || undefined : undefined
+        targetLeadListName:
+          typeof leadListName === "string" ? leadListName.trim() || undefined : undefined
       });
       res.status(201).json(task);
     })
@@ -97,7 +99,8 @@ export const createTaskRouter = (
       const task = await taskService.createProfileTask(settings, {
         name,
         profileUrls: trimmed,
-        targetLeadListName: typeof leadListName === "string" ? leadListName.trim() || undefined : undefined
+        targetLeadListName:
+          typeof leadListName === "string" ? leadListName.trim() || undefined : undefined
       });
       res.status(201).json(task);
     })
@@ -106,7 +109,7 @@ export const createTaskRouter = (
   router.patch(
     "/:taskId",
     asyncHandler(async (req, res) => {
-      const { name, status, scheduledFor } = req.body ?? {};
+      const { name, status, scheduledFor, payload } = req.body ?? {};
       let task;
       if (status) {
         if ((status === "pending" || status === "queued") && automationController) {
@@ -127,11 +130,15 @@ export const createTaskRouter = (
         if (typeof scheduledFor === "string") {
           updates.scheduledFor = scheduledFor;
         }
+        if (payload && typeof payload === "object") {
+          updates.payload = payload;
+        }
         task = await taskService.updateStatus(req.params.taskId, status, updates);
-      } else if (name || scheduledFor) {
+      } else if (name || scheduledFor || payload) {
         task = await taskService.update(req.params.taskId, {
           ...(name ? { name } : {}),
-          ...(scheduledFor ? { scheduledFor } : {})
+          ...(scheduledFor ? { scheduledFor } : {}),
+          ...(payload ? { payload } : {})
         });
       } else {
         res.status(400).json({ error: "No valid fields provided" });
