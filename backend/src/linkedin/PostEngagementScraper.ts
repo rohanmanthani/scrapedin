@@ -181,42 +181,118 @@ export class PostEngagementScraper extends BaseLinkedInClient {
     context: BrowserContext,
     profiles: T[]
   ): Promise<T[]> {
+    const PARALLEL_LIMIT = 10;
     const results: T[] = [];
-    for (const profile of profiles) {
+
+    // Separate profiles into those that need enrichment and those that don't
+    const profilesToEnrich: Array<{ profile: T; index: number }> = [];
+    const profileMap = new Map<number, T>();
+
+    for (let i = 0; i < profiles.length; i++) {
+      const profile = profiles[i];
+
       if (!profile.profileUrl || !this.needsProfileEnrichment(profile)) {
-        results.push(profile);
+        profileMap.set(i, profile);
         continue;
       }
 
       const cacheKey = profile.profileUrl.toLowerCase();
-      let details = this.profileDetailCache.get(cacheKey) ?? null;
-      if (details === null && this.profileDetailCache.has(cacheKey)) {
-        results.push(profile);
+      const cached = this.profileDetailCache.get(cacheKey);
+
+      if (cached === null && this.profileDetailCache.has(cacheKey)) {
+        // Previously failed to fetch, use as-is
+        profileMap.set(i, profile);
         continue;
       }
 
-      if (!details) {
-        details = await this.fetchProfileDetails(context, profile.profileUrl);
-        this.profileDetailCache.set(cacheKey, details);
-      }
-
-      if (!details) {
-        results.push(profile);
+      if (cached) {
+        // Use cached details
+        profileMap.set(i, {
+          ...profile,
+          fullName: cached.fullName ?? profile.fullName,
+          headline: cached.headline ?? profile.headline,
+          location: cached.location ?? profile.location,
+          currentTitle:
+            cached.currentTitle ?? profile.currentTitle ?? cached.headline ?? profile.headline,
+          currentCompany: cached.currentCompany ?? profile.currentCompany,
+          currentCompanyUrl: cached.currentCompanyUrl ?? profile.currentCompanyUrl,
+          profileImageUrl: cached.profileImageUrl ?? profile.profileImageUrl,
+          email: cached.email ?? profile.email
+        });
         continue;
       }
 
-      results.push({
-        ...profile,
-        fullName: details.fullName ?? profile.fullName,
-        headline: details.headline ?? profile.headline,
-        location: details.location ?? profile.location,
-        currentTitle:
-          details.currentTitle ?? profile.currentTitle ?? details.headline ?? profile.headline,
-        currentCompany: details.currentCompany ?? profile.currentCompany,
-        currentCompanyUrl: details.currentCompanyUrl ?? profile.currentCompanyUrl,
-        profileImageUrl: details.profileImageUrl ?? profile.profileImageUrl,
-        email: details.email ?? profile.email
-      });
+      // Needs to be fetched
+      profilesToEnrich.push({ profile, index: i });
+    }
+
+    // Process profiles in parallel batches
+    logger.info(
+      {
+        total: profiles.length,
+        cached: profiles.length - profilesToEnrich.length,
+        toEnrich: profilesToEnrich.length
+      },
+      "Enriching engagement profiles in parallel"
+    );
+
+    for (let i = 0; i < profilesToEnrich.length; i += PARALLEL_LIMIT) {
+      const batch = profilesToEnrich.slice(i, i + PARALLEL_LIMIT);
+
+      await Promise.all(
+        batch.map(async ({ profile, index }) => {
+          const cacheKey = profile.profileUrl!.toLowerCase();
+
+          try {
+            const details = await this.fetchProfileDetails(context, profile.profileUrl!);
+            this.profileDetailCache.set(cacheKey, details);
+
+            if (!details) {
+              profileMap.set(index, profile);
+              return;
+            }
+
+            profileMap.set(index, {
+              ...profile,
+              fullName: details.fullName ?? profile.fullName,
+              headline: details.headline ?? profile.headline,
+              location: details.location ?? profile.location,
+              currentTitle:
+                details.currentTitle ??
+                profile.currentTitle ??
+                details.headline ??
+                profile.headline,
+              currentCompany: details.currentCompany ?? profile.currentCompany,
+              currentCompanyUrl: details.currentCompanyUrl ?? profile.currentCompanyUrl,
+              profileImageUrl: details.profileImageUrl ?? profile.profileImageUrl,
+              email: details.email ?? profile.email
+            });
+          } catch (error) {
+            logger.warn(
+              { err: error, profileUrl: profile.profileUrl },
+              "Failed to enrich profile in parallel batch"
+            );
+            this.profileDetailCache.set(cacheKey, null);
+            profileMap.set(index, profile);
+          }
+        })
+      );
+
+      logger.debug(
+        {
+          processed: Math.min(i + PARALLEL_LIMIT, profilesToEnrich.length),
+          total: profilesToEnrich.length
+        },
+        "Processed parallel batch of profile enrichments"
+      );
+    }
+
+    // Reconstruct results in original order
+    for (let i = 0; i < profiles.length; i++) {
+      const enriched = profileMap.get(i);
+      if (enriched) {
+        results.push(enriched);
+      }
     }
 
     return results;
@@ -294,30 +370,75 @@ export class PostEngagementScraper extends BaseLinkedInClient {
     postUrl: string,
     limit: number
   ): Promise<ReactorProfiles> {
+    logger.info({ postUrl }, "Starting reactor collection");
+
+    // First, check for direct reactor page link
     const directLink = await page.$("a[href*='reactor'], a[href*='reactors']");
     if (directLink) {
       const href = await directLink.getAttribute("href");
       await directLink.dispose();
       if (href) {
+        logger.info({ postUrl, reactorPageUrl: href }, "Found direct reactor page link");
         return await this.scrapeReactorPage(context, new URL(href, postUrl).toString(), limit);
       }
     }
 
+    // Debug: Check what elements are available
+    const availableButtons = await page.evaluate(() => {
+      const buttons = Array.from(document.querySelectorAll("button, span[role='button']"));
+      return buttons
+        .filter((btn) => {
+          const text = btn.textContent?.toLowerCase() || "";
+          const ariaLabel = btn.getAttribute("aria-label")?.toLowerCase() || "";
+          return (
+            text.includes("reaction") ||
+            text.includes("like") ||
+            ariaLabel.includes("reaction") ||
+            ariaLabel.includes("like") ||
+            ariaLabel.includes("reacted")
+          );
+        })
+        .map((btn) => ({
+          tag: btn.tagName,
+          class: btn.className,
+          ariaLabel: btn.getAttribute("aria-label"),
+          text: btn.textContent?.trim().substring(0, 50)
+        }));
+    });
+
+    logger.debug({ postUrl, availableButtons }, "Available reaction buttons on page");
+
+    // Wait for social counts area to be visible
     await this.waitForSelectorGroup(page, [
       ...REACTION_TRIGGER_SELECTORS,
       ...REACTION_FALLBACK_SELECTORS
     ]);
+
     const modalSelectors = [
       ...REACTION_TRIGGER_SELECTORS,
       ...REACTION_FALLBACK_SELECTORS,
       "button[aria-label*='likes']",
       "button[data-control-name='likes_count']",
       "button[data-control-name='reactions_count']",
-      "button[data-id='reactions-count']"
+      "button[data-id='reactions-count']",
+      "button.social-details-social-counts__reactions-count",
+      "span[role='button'].social-details-social-counts__reactions-count"
     ];
+
+    logger.debug(
+      { postUrl, selectorCount: modalSelectors.length },
+      "Attempting to click reaction trigger"
+    );
+
     let clicked = await this.clickIfExists(page, modalSelectors);
+
     if (!clicked) {
-      // Scroll near the social counts footer and retry.
+      logger.info(
+        { postUrl },
+        "First click attempt failed, scrolling to social counts and retrying"
+      );
+
+      // Scroll near the social counts footer and retry
       await page.evaluate(() => {
         const counts = document.querySelector(".social-details-social-counts");
         if (counts) {
@@ -329,28 +450,93 @@ export class PostEngagementScraper extends BaseLinkedInClient {
       await this.randomDelay();
       clicked = await this.clickIfExists(page, modalSelectors);
     }
+
     if (!clicked) {
-      logger.warn(
-        { postUrl },
-        "Unable to open reactions modal; trigger not found after fallback scroll"
+      // Try to find ANY clickable element with reaction text
+      logger.warn({ postUrl }, "Standard selectors failed, trying generic reaction finder");
+
+      clicked = await page.evaluate(() => {
+        const allElements = Array.from(document.querySelectorAll("button, span[role='button'], a"));
+        for (const el of allElements) {
+          const ariaLabel = el.getAttribute("aria-label")?.toLowerCase() || "";
+          const text = el.textContent?.toLowerCase() || "";
+
+          if (
+            ariaLabel.includes("reaction") ||
+            ariaLabel.includes("reacted") ||
+            (ariaLabel.includes("like") && !ariaLabel.includes("unlike")) ||
+            text.includes("reaction") ||
+            text.includes("reacted")
+          ) {
+            if (el instanceof HTMLElement) {
+              el.click();
+              return true;
+            }
+          }
+        }
+        return false;
+      });
+
+      if (clicked) {
+        logger.info({ postUrl }, "Successfully clicked via generic finder");
+        await this.randomDelay();
+      }
+    }
+
+    if (!clicked) {
+      logger.error(
+        { postUrl, availableButtons },
+        "Unable to open reactions modal; trigger not found after all attempts. Check available buttons in logs."
       );
+
+      // Save screenshot for debugging
+      try {
+        const screenshotPath = `debug-post-${Date.now()}.png`;
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+        logger.info({ postUrl, screenshotPath }, "Saved debug screenshot");
+      } catch (err) {
+        logger.warn({ err }, "Failed to save debug screenshot");
+      }
+
       return [];
     }
+
+    logger.info({ postUrl }, "Reaction button clicked, waiting for modal to appear");
 
     const modalSelector =
-      "div.social-details-reactors-modal, div.reactions-modal, div.artdeco-modal";
+      "div.social-details-reactors-modal, div.reactions-modal, div.artdeco-modal, div[role='dialog']";
+
     try {
       await page.waitForSelector(modalSelector, { timeout: this.settings.pageTimeoutMs });
-    } catch {
+      logger.info({ postUrl }, "Modal appeared successfully");
+    } catch (err) {
+      logger.error({ postUrl, err }, "Modal did not appear after clicking reaction button");
+
+      // Check what's on page
+      const pageContent = await page.evaluate(() => {
+        return {
+          modals: Array.from(document.querySelectorAll("div[role='dialog'], .artdeco-modal")).map(
+            (m) => m.className
+          ),
+          bodyClasses: document.body.className
+        };
+      });
+      logger.debug({ postUrl, pageContent }, "Page state after failed modal wait");
+
       return [];
     }
 
+    logger.info({ postUrl, limit }, "Scrolling within modal to load reactors");
     await this.scrollWithinContainer(page, REACTOR_SCROLL_CONTAINERS, limit);
     await this.waitForRows(page, REACTOR_ROW_SELECTOR);
+
+    logger.info({ postUrl }, "Extracting reactor data from modal");
     const extracted = await page.evaluate(extractReactors, {
       limit,
       origin: postUrl
     });
+
+    logger.info({ postUrl, reactorCount: extracted.length }, "Extracted reactors from modal");
 
     await this.dismissModal(page, modalSelector);
 
@@ -396,20 +582,187 @@ export class PostEngagementScraper extends BaseLinkedInClient {
     postUrl: string,
     limit: number
   ): Promise<CommentProfiles> {
+    logger.info({ postUrl, limit }, "Starting commenter collection");
+
+    // First, scroll down to make sure comments section is visible and loads
+    logger.debug("Scrolling to comments section");
+    await page.evaluate(() => {
+      // Try to find comments section with multiple selectors
+      const commentsSectionSelectors = [
+        ".comments-comments-list",
+        ".social-details-social-activity",
+        "section[data-test-id='comments-section']",
+        ".comments-container",
+        "div[id*='comments']",
+        "section.comments"
+      ];
+
+      let commentsSection = null;
+      for (const selector of commentsSectionSelectors) {
+        commentsSection = document.querySelector(selector);
+        if (commentsSection) break;
+      }
+
+      if (commentsSection) {
+        commentsSection.scrollIntoView({ block: "center", behavior: "smooth" });
+      } else {
+        // If no comments section found, scroll to bottom to trigger lazy loading
+        window.scrollTo(0, document.body.scrollHeight);
+      }
+    });
+    await this.randomDelay();
+
+    // Wait a bit more for comments to lazy load
+    await this.randomDelay();
+
+    // Try to wait for comments section to appear
+    try {
+      await page.waitForSelector(
+        ".comments-comments-list, .social-details-social-activity, article.comments-comment-item, div.comments-comment-item",
+        { timeout: Math.min(this.settings.pageTimeoutMs / 2, 10_000) }
+      );
+      logger.debug("Comments section found on page");
+    } catch {
+      logger.warn(
+        { postUrl },
+        "Comments section did not appear after scrolling - post may have no comments"
+      );
+    }
+
+    // Debug: Check what comment elements are available
+    const availableComments = await page.evaluate(() => {
+      const selectors = [
+        "article.comments-comment-item",
+        "li.comments-comments-list__comment-item",
+        "div.comments-comment-item",
+        "li[data-id^='urn:li:comment:']",
+        "article.feed-shared-update-v2__comment-item"
+      ];
+
+      const results: { selector: string; count: number }[] = [];
+      for (const selector of selectors) {
+        const count = document.querySelectorAll(selector).length;
+        if (count > 0) {
+          results.push({ selector, count });
+        }
+      }
+
+      // Also check for load more buttons
+      const loadMoreButtons = Array.from(document.querySelectorAll("button"))
+        .filter((btn) => {
+          const text = btn.textContent?.toLowerCase() || "";
+          const ariaLabel = btn.getAttribute("aria-label")?.toLowerCase() || "";
+          return (
+            text.includes("comment") ||
+            ariaLabel.includes("comment") ||
+            text.includes("more") ||
+            text.includes("previous")
+          );
+        })
+        .map((btn) => ({
+          text: btn.textContent?.trim().substring(0, 50),
+          ariaLabel: btn.getAttribute("aria-label"),
+          class: btn.className
+        }));
+
+      return { comments: results, loadMoreButtons };
+    });
+
+    logger.debug(
+      { postUrl, availableComments },
+      "Available comments and load more buttons before expansion"
+    );
+
     await this.expandComments(page, limit);
     await this.waitForRows(page, COMMENT_ROW_SELECTOR);
-    return await page.evaluate(extractComments, {
+
+    const extracted = await page.evaluate(extractComments, {
       limit,
       origin: postUrl
     });
+
+    logger.info({ postUrl, commenterCount: extracted.length }, "Extracted commenters from post");
+
+    if (extracted.length === 0) {
+      logger.warn(
+        { postUrl, availableComments },
+        "Zero commenters extracted. Post may have no comments, or selectors need updating."
+      );
+
+      // Save screenshot for debugging
+      try {
+        const screenshotPath = `debug-comments-${Date.now()}.png`;
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+        logger.info({ postUrl, screenshotPath }, "Saved debug screenshot for comments");
+      } catch (err) {
+        logger.warn({ err }, "Failed to save debug screenshot for comments");
+      }
+
+      // Log page structure for debugging
+      const pageStructure = await page.evaluate(() => {
+        return {
+          hasCommentsSection: !!document.querySelector(
+            ".comments-comments-list, .social-details-social-activity"
+          ),
+          totalButtons: document.querySelectorAll("button").length,
+          bodyText: document.body.textContent?.substring(0, 500)
+        };
+      });
+      logger.debug({ postUrl, pageStructure }, "Page structure for debugging zero comments");
+    }
+
+    return extracted;
   }
 
   private async expandComments(page: Page, limit: number): Promise<void> {
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-      const expanded = await this.clickIfExists(page, COMMENT_LOAD_MORE_SELECTORS);
+    logger.info({ limit }, "Expanding comments to load more");
+
+    // Scroll page a bit to trigger lazy loading of comments
+    await page.evaluate(() => {
+      window.scrollBy(0, 500);
+    });
+    await this.randomDelay();
+
+    let previousCount = 0;
+    let stuckCount = 0;
+
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      // Try standard selectors first
+      let expanded = await this.clickIfExists(page, COMMENT_LOAD_MORE_SELECTORS);
+
+      // If standard selectors failed, try generic finder
       if (!expanded) {
+        logger.debug("Standard load more selectors failed, trying generic finder");
+        expanded = await page.evaluate(() => {
+          const allButtons = Array.from(document.querySelectorAll("button, span[role='button']"));
+          for (const btn of allButtons) {
+            const text = btn.textContent?.toLowerCase() || "";
+            const ariaLabel = btn.getAttribute("aria-label")?.toLowerCase() || "";
+
+            if (
+              (text.includes("load") && text.includes("comment")) ||
+              (text.includes("more") && text.includes("comment")) ||
+              (text.includes("previous") && text.includes("comment")) ||
+              (ariaLabel.includes("load") && ariaLabel.includes("comment")) ||
+              text.includes("show more comments") ||
+              text.includes("view more comments")
+            ) {
+              if (btn instanceof HTMLElement) {
+                btn.click();
+                return true;
+              }
+            }
+          }
+          return false;
+        });
+      }
+
+      if (!expanded) {
+        logger.debug({ attempt }, "No more 'load more comments' buttons found");
         break;
       }
+
+      logger.debug({ attempt }, "Clicked load more comments button, waiting for new comments");
       await this.randomDelay();
 
       const count = await page.evaluate((selectors: string[]) => {
@@ -418,12 +771,41 @@ export class PostEngagementScraper extends BaseLinkedInClient {
           .reduce((total, value) => total + value, 0);
       }, COMMENT_SELECTORS_FOR_LENGTH);
 
+      logger.debug(
+        { attempt, commentCount: count, limit },
+        "Current comment count after expansion"
+      );
+
+      // Check if we're stuck (no new comments loaded)
+      if (count === previousCount) {
+        stuckCount++;
+        if (stuckCount >= 3) {
+          logger.warn("Comments not loading after clicking load more button 3 times, stopping");
+          break;
+        }
+      } else {
+        stuckCount = 0;
+      }
+      previousCount = count;
+
       if (count >= limit) {
+        logger.info({ count, limit }, "Reached comment limit");
         break;
       }
     }
 
+    // Expand truncated comment text (see more buttons)
+    logger.debug("Expanding truncated comment text");
     await this.expandAll(page, COMMENT_SEE_MORE_SELECTORS);
+
+    // Final count
+    const finalCount = await page.evaluate((selectors: string[]) => {
+      return selectors
+        .map((selector) => document.querySelectorAll(selector).length)
+        .reduce((total, value) => total + value, 0);
+    }, COMMENT_SELECTORS_FOR_LENGTH);
+
+    logger.info({ finalCount }, "Comment expansion complete");
   }
 
   private async scrollWithinContainer(
@@ -519,14 +901,23 @@ export class PostEngagementScraper extends BaseLinkedInClient {
 
   private async clickIfExists(page: Page, selectors: string[]): Promise<boolean> {
     for (const selector of selectors) {
-      const handle = await page.$(selector);
-      if (handle) {
-        try {
+      try {
+        const handle = await page.$(selector);
+        if (handle) {
+          const isVisible = await handle.isVisible().catch(() => false);
+          if (!isVisible) {
+            await handle.dispose();
+            continue;
+          }
+
+          logger.debug({ selector }, "Found and clicking element");
           await handle.click({ delay: 50 });
-          return true;
-        } finally {
           await handle.dispose();
+          return true;
         }
+      } catch (err) {
+        logger.debug({ selector, err }, "Failed to click selector");
+        continue;
       }
     }
     return false;
